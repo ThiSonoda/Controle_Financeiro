@@ -1,0 +1,67 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Relatório - Gasto x Orçado</h1>
+
+<form method="get" action="">
+  <label for="id_year">Ano:</label>
+  <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100">
+  <label for="id_month">Mês:</label>
+  <input type="number" id="id_month" name="month" value="{{ month }}" min="1" max="12">
+  <button type="submit">Atualizar</button>
+</form>
+
+<hr>
+
+<h2>Mês {{ month }}/{{ year }}</h2>
+
+{% if rows %}
+  <table border="1" cellspacing="0" cellpadding="4">
+    <thead>
+      <tr>
+        <th>Categoria</th>
+        <th>Orçado (R$)</th>
+        <th>Gasto (R$)</th>
+        <th>Diferença (Orçado - Gasto)</th>
+        <th>% Utilizado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr {% if r.diff < 0 %}style="background-color:#ffd0d0"{% endif %}>
+          <td>{{ r.category_name }}</td>
+          <td>R$ {{ r.budget|floatformat:2 }}</td>
+          <td>R$ {{ r.spent|floatformat:2 }}</td>
+          <td>R$ {{ r.diff|floatformat:2 }}</td>
+          <td>
+            {% if r.percent %}
+              {{ r.percent|floatformat:1 }}%
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th>Total</th>
+        <th>R$ {{ total_budget|floatformat:2 }}</th>
+        <th>R$ {{ total_spent|floatformat:2 }}</th>
+        <th>R$ {{ total_diff|floatformat:2 }}</th>
+        <th>
+          {% if total_percent %}
+            {{ total_percent|floatformat:1 }}%
+          {% else %}
+            -
+          {% endif %}
+        </th>
+      </tr>
+    </tfoot>
+  </table>
+{% else %}
+  <p>Não há dados para este mês.</p>
+{% endif %}
+
+{% endblock %}

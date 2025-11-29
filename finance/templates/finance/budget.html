@@ -1,0 +1,66 @@
+{% extends "finance/base.html" %}
+{% load static finance_extras %}
+
+{% block content %}
+<h1>Planejamento de Orçamento Mensal</h1>
+
+{% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<form method="get" action="">
+  <label for="id_year">Ano:</label>
+  <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100">
+  <label for="id_month">Mês:</label>
+  <input type="number" id="id_month" name="month" value="{{ month }}" min="1" max="12">
+  <button type="submit">Trocar mês</button>
+</form>
+
+<hr>
+
+<form method="post" action="">
+  {% csrf_token %}
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="month" value="{{ month }}">
+
+  <h2>Orçamento para {{ month }}/{{ year }}</h2>
+
+  <table border="1" cellspacing="0" cellpadding="4">
+    <thead>
+      <tr>
+        <th>Categoria</th>
+        <th>Orçado (R$)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in categories %}
+        {% with budget=budget_map.c.id %}
+        {% endwith %}
+        <tr>
+          <td>{{ c.name }}</td>
+          <td>
+            {% with b=budget_map|get_item:c.id %}
+              <input type="number"
+                     name="budget_{{ c.id }}"
+                     step="0.01"
+                     min="0"
+                     value="{% if b %}{{ b.amount }}{% else %}{% endif %}">
+            {% endwith %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p style="margin-top: 10px;">
+    Deixe em branco para remover o orçamento daquela categoria.
+  </p>
+
+  <button type="submit">Salvar orçamento</button>
+</form>
+
+{% endblock %}

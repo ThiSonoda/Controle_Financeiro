@@ -1,0 +1,135 @@
+{% extends "finance/base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block extra_css %}
+<style>
+    .login-page-wrapper {
+        min-height: calc(100vh - 120px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .login-card {
+        background: white;
+        padding: 32px 30px 28px;
+        border-radius: 10px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        width: 360px; /* ← largura fixa do card */
+        box-sizing: border-box;
+    }
+
+    .login-title {
+        margin: 0 0 4px 0;
+        font-size: 22px;
+        text-align: center;
+        color: #283593;
+    }
+
+    .login-subtitle {
+        margin: 0 0 22px 0;
+        text-align: center;
+        color: #666;
+        font-size: 14px;
+    }
+
+    .login-error {
+        background: #ffebee;
+        color: #c62828;
+        padding: 10px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        text-align: center;
+        font-size: 14px;
+    }
+
+    .login-form-group {
+        margin-bottom: 16px;
+        width: 100%;
+    }
+
+    .login-form-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 14px;
+        color: #555;
+    }
+
+    /* 🔥 AQUI ESTÁ A GARANTIA ABSOLUTA */
+    .login-input,
+    .login-button {
+        display: block;
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 15px;
+        border-radius: 6px;
+        box-sizing: border-box; /* ← garante tamanho real e igual */
+    }
+
+    .login-input {
+        border: 1px solid #ccc;
+        background: #fff;
+    }
+
+    .login-button {
+        background: #283593;
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-top: 6px;
+        font-weight: 600;
+        transition: 0.2s;
+    }
+
+    .login-button:hover {
+        background: #1a237e;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-page-wrapper">
+    <div class="login-card">
+
+        <h1 class="login-title">Bem-vindo</h1>
+        <p class="login-subtitle">Entre para acessar seu controle financeiro</p>
+
+        {% if form.errors %}
+            <div class="login-error">
+                Usuário ou senha incorretos. Tente novamente.
+            </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+
+            <div class="login-form-group">
+                <label for="id_username">Usuário</label>
+                <input type="text"
+                       id="id_username"
+                       name="username"
+                       required
+                       autofocus
+                       class="login-input">
+            </div>
+
+            <div class="login-form-group">
+                <label for="id_password">Senha</label>
+                <input type="password"
+                       id="id_password"
+                       name="password"
+                       required
+                       class="login-input">
+            </div>
+
+            <button type="submit" class="login-button">
+                Entrar
+            </button>
+
+            <input type="hidden" name="next" value="{{ next }}">
+        </form>
+
+    </div>
+</div>
+{% endblock %}

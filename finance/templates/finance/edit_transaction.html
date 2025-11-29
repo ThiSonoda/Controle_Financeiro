@@ -1,0 +1,86 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Editar Lançamento</h1>
+
+{% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<form method="post" action="">
+  {% csrf_token %}
+  <div>
+    <label for="id_date">Data:</label>
+    <input type="date" id="id_date" name="date" required value="{{ transaction.date|date:'Y-m-d' }}">
+  </div>
+
+  <div>
+    <label for="id_type">Tipo:</label>
+    <select id="id_type" name="type" required>
+      <option value="IN" {% if transaction.type == "IN" %}selected{% endif %}>Receita</option>
+      <option value="EX" {% if transaction.type == "EX" %}selected{% endif %}>Despesa</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="id_amount">Valor:</label>
+    <input type="number" id="id_amount" name="amount" step="0.01" min="0" required value="{{ transaction.amount }}">
+  </div>
+
+  <div>
+    <label for="id_category">Categoria:</label>
+    <select id="id_category" name="category" required>
+      <option value="">-- selecione --</option>
+      {% for c in categories %}
+        <option value="{{ c.id }}" {% if c.id == transaction.category.id %}selected{% endif %}>
+          {{ c.name }}{% if c.is_income %} (receita){% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <label for="id_account">Conta:</label>
+    <select id="id_account" name="account" required>
+      <option value="">-- selecione --</option>
+      {% for a in accounts %}
+        <option value="{{ a.id }}" {% if a.id == transaction.account.id %}selected{% endif %}>{{ a.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <label for="id_credit_card">Cartão de Crédito (opcional):</label>
+    <select id="id_credit_card" name="credit_card">
+      <option value="">-- nenhum --</option>
+      {% for card in credit_cards %}
+        <option value="{{ card.id }}" {% if transaction.credit_card and card.id == transaction.credit_card.id %}selected{% endif %}>
+          {{ card.name }}
+        </option>
+      {% endfor %}
+    </select>
+    <small style="display: block; color: #666; margin-top: 4px;">
+      Se selecionado, a data de pagamento será ajustada para a data de vencimento da fatura do cartão.
+      A data de lançamento permanecerá como a data informada acima.
+      <a href="{% url 'finance:credit_cards' %}" target="_blank">Gerenciar cartões</a>
+    </small>
+  </div>
+
+  <div>
+    <label for="id_description">Descrição:</label>
+    <input type="text" id="id_description" name="description" value="{{ transaction.description }}">
+  </div>
+
+  <div style="margin-top: 12px;">
+    <button type="submit">Atualizar</button>
+    <a href="{% url 'finance:transactions' %}" style="margin-left: 10px;">Cancelar</a>
+  </div>
+</form>
+
+{% endblock %}
+

@@ -1,0 +1,16 @@
+{% extends "finance/base.html" %}
+
+{% block title %}Logout{% endblock %}
+
+{% block content %}
+<h1>Você saiu do sistema</h1>
+
+<p style="margin-top: 10px;">
+    Sessão encerrada com sucesso.
+</p>
+
+<p>
+    <a href="{% url 'login' %}">Clique aqui para entrar novamente</a>
+</p>
+
+{% endblock %}
