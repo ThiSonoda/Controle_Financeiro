@@ -69,42 +69,44 @@
     .transactions-layout { flex-direction: column; }
     .transactions-layout .right-column { width: 100%; max-width: none; }
   }
+  /* two-column small form rows (e.g., Tipo + Categoria) */
+  .two-columns { display: flex; gap: 12px; }
+  .two-columns > div { flex: 1; }
+  @media (max-width: 600px) { .two-columns { flex-direction: column; } }
 </style>
-
-<div class="transactions-layout">
-  <div class="left-column">
-    <form method="post" action="">
-  {% csrf_token %}
-  <div style="display: flex; gap: 16px;">
-    <div style="flex: 1;">
-      <label for="id_date">Data:</label>
-      <input type="date" id="id_date" name="date" required>
-    </div>
-
-    <div style="flex: 1;">
-      <label for="id_amount">Valor:</label>
-      <input type="number" id="id_amount" name="amount" step="0.01" min="0" required>
-    </div>
-  </div>
-
-  <div style="display: flex; gap: 16px;">
-    <div style="flex: 1;">
+  <div class="two-columns">
+    <div>
       <label for="id_type">Tipo:</label>
       <select id="id_type" name="type" required>
-        <option value="EX">Despesa</option>
         <option value="IN">Receita</option>
+        <option value="EX">Despesa</option>
       </select>
     </div>
 
-    <div style="flex: 1;">
-      <label for="id_subcategory">Subcategoria:</label>
-      <select id="id_subcategory" name="subcategory" required>
+    <div>
+      <label for="id_category">Categoria:</label>
+      <select id="id_category" name="category" required>
         <option value="">-- selecione --</option>
-        {% for subcat in subcategories %}
-          <option value="{{ subcat.id }}">{{ subcat.category.name }} - {{ subcat.name }}{% if subcat.category.is_income %} (receita){% endif %}</option>
+        {% for c in categories %}
+          <option value="{{ c.id }}">{{ c.name }}{% if c.is_income %} (receita){% endif %}</option>
         {% endfor %}
       </select>
     </div>
+  </div>
+
+  <div>
+    <label for="id_amount">Valor:</label>
+    <input type="number" id="id_amount" name="amount" step="0.01" min="0" required>
+  </div>
+
+  <div>
+    <label for="id_category">Categoria:</label>
+    <select id="id_category" name="category" required>
+      <option value="">-- selecione --</option>
+      {% for c in categories %}
+        <option value="{{ c.id }}">{{ c.name }}{% if c.is_income %} (receita){% endif %}</option>
+      {% endfor %}
+    </select>
   </div>
 
   <!-- <div>
@@ -124,7 +126,7 @@
     <input type="text" id="id_description" name="description">
   </div>
 
-  <fieldset id="installment_fieldset" style="margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; display: none;">
+  <fieldset style="margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 6px;">
     <legend>Compra parcelada no cartão</legend>
 
     <div>
@@ -283,13 +285,7 @@
             {% if t.type == "EX" %}-{% endif %}
             R$ {{ t.amount }}
           </td>
-          <td>
-            {% if t.subcategory %}
-              {{ t.subcategory.category.name }} - {{ t.subcategory.name }}
-            {% else %}
-              {{ t.category.name|default:"-" }}
-            {% endif %}
-          </td>
+          <td>{{ t.category.name }}</td>
           <td>{{ t.account.name }}</td>
           <td>{{ t.credit_card.name|default:"-" }}</td>
           <td>{{ t.description }}</td>
@@ -328,24 +324,6 @@
       buttons.forEach(b => b.classList.toggle('active', b === button));
       const id = button.getAttribute('data-card-id') || '';
       try { localStorage.setItem(storageKey, id); } catch(e) {}
-      
-      // Mostrar/ocultar opção de compra parcelada baseado na seleção
-      const installmentFieldset = document.getElementById('installment_fieldset');
-      if (installmentFieldset) {
-        // Se um cartão de crédito foi selecionado (id não vazio), mostrar o fieldset
-        // Se "Débito" foi selecionado (id vazio), ocultar o fieldset
-        if (id && id.trim() !== '') {
-          installmentFieldset.style.display = 'block';
-        } else {
-          installmentFieldset.style.display = 'none';
-          // Também desmarcar o checkbox e ocultar os campos de parcelas se estiverem visíveis
-          const checkbox = document.getElementById('id_is_installment');
-          if (checkbox) {
-            checkbox.checked = false;
-            toggleInstallmentFields();
-          }
-        }
-      }
     }
 
     buttons.forEach(btn => btn.addEventListener('click', function(){ setActive(btn); }));

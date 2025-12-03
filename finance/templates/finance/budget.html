@@ -4,14 +4,6 @@
 {% block content %}
 <h1>Planejamento de Orçamento Mensal</h1>
 
-{% if messages %}
-  <ul class="messages">
-    {% for message in messages %}
-      <li class="{{ message.tags }}">{{ message }}</li>
-    {% endfor %}
-  </ul>
-{% endif %}
-
 <form method="get" action="">
   <label for="id_year">Ano:</label>
   <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100">
@@ -32,16 +24,14 @@
   <table border="1" cellspacing="0" cellpadding="4">
     <thead>
       <tr>
-        <th>Categoria</th>
+        <th>SubCategoria</th>
         <th>Orçado (R$)</th>
       </tr>
     </thead>
     <tbody>
-      {% for c in categories %}
-        {% with budget=budget_map.c.id %}
-        {% endwith %}
+      {% for c in subcategories %}
         <tr>
-          <td>{{ c.name }}</td>
+          <td>{{ c.category.name }} - {{ c.name }}</td>
           <td>
             {% with b=budget_map|get_item:c.id %}
               <input type="number"

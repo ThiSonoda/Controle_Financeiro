@@ -33,12 +33,12 @@
   </div>
 
   <div>
-    <label for="id_category">Categoria:</label>
-    <select id="id_category" name="category" required>
+    <label for="id_subcategory">Subcategoria:</label>
+    <select id="id_subcategory" name="subcategory" required>
       <option value="">-- selecione --</option>
-      {% for c in categories %}
-        <option value="{{ c.id }}" {% if c.id == transaction.category.id %}selected{% endif %}>
-          {{ c.name }}{% if c.is_income %} (receita){% endif %}
+      {% for subcat in subcategories %}
+        <option value="{{ subcat.id }}" {% if transaction.subcategory and subcat.id == transaction.subcategory.id %}selected{% endif %}>
+          {{ subcat.category.name }} - {{ subcat.name }}{% if subcat.category.is_income %} (receita){% endif %}
         </option>
       {% endfor %}
     </select>

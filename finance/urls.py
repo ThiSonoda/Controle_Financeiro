@@ -10,7 +10,9 @@ urlpatterns = [
     path('transactions/', views.transactions_view, name='transactions'),
     path('transactions/<int:transaction_id>/edit/', views.edit_transaction_view, name='edit_transaction'),
     path('transactions/<int:transaction_id>/delete/', views.delete_transaction_view, name='delete_transaction'),
+    path('credit-cards/<int:card_id>/pay/<int:year>/<int:month>/', views.pay_credit_card_invoice_view, name='pay_invoice'),
+    path('credit-cards/<int:card_id>/reopen/<int:year>/<int:month>/', views.reopen_credit_card_invoice_view, name='reopen_invoice'),
     path('budget/', views.budget_view, name='budget'),
     path('report/', views.report_view, name='report'),
-    path('credit-cards/', views.credit_cards_view, name='credit_cards'),
+    # path('credit-cards/', views.credit_cards_view, name='credit_cards'),
 ]

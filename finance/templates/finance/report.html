@@ -20,7 +20,7 @@
   <table border="1" cellspacing="0" cellpadding="4">
     <thead>
       <tr>
-        <th>Categoria</th>
+        <th>Subcategoria</th>
         <th>Orçado (R$)</th>
         <th>Gasto (R$)</th>
         <th>Diferença (Orçado - Gasto)</th>
@@ -30,7 +30,7 @@
     <tbody>
       {% for r in rows %}
         <tr {% if r.diff < 0 %}style="background-color:#ffd0d0"{% endif %}>
-          <td>{{ r.category_name }}</td>
+          <td>{{ r.subcategory_name }}</td>
           <td>R$ {{ r.budget|floatformat:2 }}</td>
           <td>R$ {{ r.spent|floatformat:2 }}</td>
           <td>R$ {{ r.diff|floatformat:2 }}</td>
