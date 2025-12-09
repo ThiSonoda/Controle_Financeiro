@@ -7,6 +7,7 @@ app_name = 'finance'
 
 urlpatterns = [
     path('', auth_views.LoginView.as_view(template_name='finance/login.html'), name='login'),
+    path('dashboard/', views.dashboard_view, name='dashboard'),
     path('transactions/', views.transactions_view, name='transactions'),
     path('transactions/<int:transaction_id>/edit/', views.edit_transaction_view, name='edit_transaction'),
     path('transactions/<int:transaction_id>/delete/', views.delete_transaction_view, name='delete_transaction'),
@@ -14,5 +15,7 @@ urlpatterns = [
     path('credit-cards/<int:card_id>/reopen/<int:year>/<int:month>/', views.reopen_credit_card_invoice_view, name='reopen_invoice'),
     path('budget/', views.budget_view, name='budget'),
     path('report/', views.report_view, name='report'),
+    path('all-transactions/', views.all_transactions_view, name='all_transactions'),
+    path('all-logs/', views.all_logs_view, name='all_logs'),
     # path('credit-cards/', views.credit_cards_view, name='credit_cards'),
 ]

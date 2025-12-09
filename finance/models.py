@@ -71,6 +71,7 @@ class Transaction(models.Model):
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     type = models.CharField(max_length=2, choices=TYPE_CHOICES)
     description = models.CharField(max_length=255, blank=True)
+    comment = models.TextField(blank=True, help_text="Comentário opcional sobre o lançamento")
     created_at = models.DateTimeField(auto_now_add=True)
 
     installment_group = models.UUIDField(
@@ -80,12 +81,32 @@ class Transaction(models.Model):
         help_text="Identificador do grupo de parcelas, se for uma compra parcelada."
     )
 
+    is_installment = models.BooleanField(
+        default=False,
+        help_text="Indica se o lançamento é parte de uma compra parcelada."
+    )
+
     credit_card = models.ForeignKey(
         'CreditCard',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         help_text="Cartão de crédito utilizado (se aplicável). A payment_date será ajustada para a data de vencimento da fatura."
+    )
+
+    OWNER_THI = 'Thi'
+    OWNER_THA = 'Tha'
+    OWNER_CHOICES = [
+        (OWNER_THI, 'Thiago'),
+        (OWNER_THA, 'Thaís'),
+    ]
+
+    owner_tag = models.CharField(
+        max_length=3,
+        choices=OWNER_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Tag do proprietário (obrigatório para cartão Bradesco): Thi (Thiago) ou Tha (Thaís)"
     )
 
     is_paid = models.BooleanField(

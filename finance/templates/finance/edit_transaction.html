@@ -12,75 +12,181 @@
   </ul>
 {% endif %}
 
-<form method="post" action="">
-  {% csrf_token %}
-  <div>
-    <label for="id_date">Data:</label>
-    <input type="date" id="id_date" name="date" required value="{{ transaction.date|date:'Y-m-d' }}">
-  </div>
+<style>
+  .edit-transaction-layout { display: flex; gap: 24px; align-items: flex-start; }
+  .edit-transaction-layout .left-column { flex: 1 1 0; min-width: 320px; }
+  .edit-transaction-layout .right-column { flex: 1 1 0; min-width: 320px; }
 
-  <div>
-    <label for="id_type">Tipo:</label>
-    <select id="id_type" name="type" required>
-      <option value="IN" {% if transaction.type == "IN" %}selected{% endif %}>Receita</option>
-      <option value="EX" {% if transaction.type == "EX" %}selected{% endif %}>Despesa</option>
-    </select>
-  </div>
+  /* Form controls full width and spacing */
+  .edit-transaction-layout form div { margin-bottom: 12px; }
+  .edit-transaction-layout label { display: block; margin-bottom: 6px; font-weight: 600; }
+  .edit-transaction-layout input[type="text"],
+  .edit-transaction-layout input[type="date"],
+  .edit-transaction-layout input[type="number"],
+  .edit-transaction-layout select,
+  .edit-transaction-layout textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+  }
 
-  <div>
-    <label for="id_amount">Valor:</label>
-    <input type="number" id="id_amount" name="amount" step="0.01" min="0" required value="{{ transaction.amount }}">
-  </div>
+  /* Altura específica para os campos de Tipo e Subcategoria */
+  #id_type {
+    height: 40px;
+  }
 
-  <div>
-    <label for="id_subcategory">Subcategoria:</label>
-    <select id="id_subcategory" name="subcategory" required>
-      <option value="">-- selecione --</option>
-      {% for subcat in subcategories %}
-        <option value="{{ subcat.id }}" {% if transaction.subcategory and subcat.id == transaction.subcategory.id %}selected{% endif %}>
-          {{ subcat.category.name }} - {{ subcat.name }}{% if subcat.category.is_income %} (receita){% endif %}
-        </option>
-      {% endfor %}
-    </select>
-  </div>
+  #id_subcategory {
+    height: 40px;
+  }
 
-  <div>
-    <label for="id_account">Conta:</label>
-    <select id="id_account" name="account" required>
-      <option value="">-- selecione --</option>
-      {% for a in accounts %}
-        <option value="{{ a.id }}" {% if a.id == transaction.account.id %}selected{% endif %}>{{ a.name }}</option>
-      {% endfor %}
-    </select>
-  </div>
+  .edit-transaction-layout button { 
+    padding: 8px 14px; 
+    border-radius: 4px; 
+    font-size: 16px;
+  }
 
-  <div>
-    <label for="id_credit_card">Cartão de Crédito (opcional):</label>
-    <select id="id_credit_card" name="credit_card">
-      <option value="">-- nenhum --</option>
-      {% for card in credit_cards %}
-        <option value="{{ card.id }}" {% if transaction.credit_card and card.id == transaction.credit_card.id %}selected{% endif %}>
-          {{ card.name }}
-        </option>
-      {% endfor %}
-    </select>
-    <small style="display: block; color: #666; margin-top: 4px;">
-      Se selecionado, a data de pagamento será ajustada para a data de vencimento da fatura do cartão.
-      A data de lançamento permanecerá como a data informada acima.
-      <a href="{% url 'finance:credit_cards' %}" target="_blank">Gerenciar cartões</a>
-    </small>
-  </div>
+  .edit-transaction-layout small {
+    display: block;
+    color: #666;
+    margin-top: 4px;
+    font-size: 14px;
+  }
 
-  <div>
-    <label for="id_description">Descrição:</label>
-    <input type="text" id="id_description" name="description" value="{{ transaction.description }}">
-  </div>
+  @media (max-width: 900px) {
+    .edit-transaction-layout { flex-direction: column; }
+  }
+</style>
 
-  <div style="margin-top: 12px;">
-    <button type="submit">Atualizar</button>
-    <a href="{% url 'finance:transactions' %}" style="margin-left: 10px;">Cancelar</a>
-  </div>
-</form>
+<div class="edit-transaction-layout">
+  <form method="post" action="">
+    {% csrf_token %}
+    
+    <div class="left-column">
+      <div style="display: flex; gap: 16px;">
+        <div style="flex: 1;">
+          <label for="id_date">Data:</label>
+          <input type="date" id="id_date" name="date" required value="{{ transaction.date|date:'Y-m-d' }}">
+        </div>
+
+        <div style="flex: 1;">
+          <label for="id_type">Tipo:</label>
+          <select id="id_type" name="type" required>
+            <option value="IN" {% if transaction.type == "IN" %}selected{% endif %}>Receita</option>
+            <option value="EX" {% if transaction.type == "EX" %}selected{% endif %}>Despesa</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 16px;">
+        <div style="flex: 1;">
+          <label for="id_amount">Valor:</label>
+          <input type="number" id="id_amount" name="amount" step="0.01" min="0" required value="{{ transaction_amount }}">
+        </div>
+
+        <div style="flex: 1;">
+          <label for="id_subcategory">Subcategoria:</label>
+          <select id="id_subcategory" name="subcategory" required>
+            <option value="">-- selecione --</option>
+            {% for subcat in subcategories %}
+              <option value="{{ subcat.id }}" {% if transaction.subcategory and subcat.id == transaction.subcategory.id %}selected{% endif %}>
+                {{ subcat.category.name }} - {{ subcat.name }}{% if subcat.category.is_income %} (receita){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label for="id_description">Descrição:</label>
+        <input type="text" id="id_description" name="description" value="{{ transaction.description }}">
+      </div>
+
+      <div>
+        <label for="id_comment">Comentário (opcional):</label>
+        <textarea id="id_comment" name="comment" rows="3" placeholder="Adicione um comentário sobre este lançamento...">{{ transaction.comment|default:"" }}</textarea>
+      </div>
+    </div>
+
+    <div class="right-column">
+      <div>
+        <label for="id_account">Conta:</label>
+        <select id="id_account" name="account" required>
+          <option value="">-- selecione --</option>
+          {% for a in accounts %}
+            <option value="{{ a.id }}" {% if a.id == transaction.account.id %}selected{% endif %}>{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label for="id_credit_card">Cartão de Crédito (opcional):</label>
+        <select id="id_credit_card" name="credit_card">
+          <option value="">-- nenhum --</option>
+          {% for card in credit_cards %}
+            <option value="{{ card.id }}" {% if transaction.credit_card and card.id == transaction.credit_card.id %}selected{% endif %}>
+              {{ card.name }}
+            </option>
+          {% endfor %}
+        </select>
+        <small>
+          Se selecionado, a data de pagamento será ajustada para a data de vencimento da fatura do cartão.
+          A data de lançamento permanecerá como a data informada acima.
+        </small>
+      </div>
+
+      <div id="owner_tag_field" style="display: none;">
+        <label for="id_owner_tag">Tag (obrigatório para cartão Bradesco):</label>
+        <select id="id_owner_tag" name="owner_tag">
+          <option value="">-- selecione --</option>
+          <option value="Thi" {% if transaction.owner_tag == "Thi" %}selected{% endif %}>Thiago (Thi)</option>
+          <option value="Tha" {% if transaction.owner_tag == "Tha" %}selected{% endif %}>Thaís (Tha)</option>
+        </select>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button type="submit">Atualizar</button>
+        <a href="{% url 'finance:transactions' %}" style="margin-left: 10px;">Cancelar</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  function toggleOwnerTagField() {
+    const creditCardSelect = document.getElementById('id_credit_card');
+    const ownerTagField = document.getElementById('owner_tag_field');
+    const ownerTagSelect = document.getElementById('id_owner_tag');
+    
+    if (!creditCardSelect || !ownerTagField || !ownerTagSelect) return;
+    
+    const selectedOption = creditCardSelect.options[creditCardSelect.selectedIndex];
+    const cardName = selectedOption ? selectedOption.text : '';
+    const isBradesco = cardName && cardName.toLowerCase().includes('bradesco');
+    
+    if (isBradesco) {
+      ownerTagField.style.display = 'block';
+      ownerTagSelect.required = true;
+    } else {
+      ownerTagField.style.display = 'none';
+      ownerTagSelect.required = false;
+      if (!isBradesco) {
+        ownerTagSelect.value = '';
+      }
+    }
+  }
+  
+  // Executar ao carregar a página e ao mudar o cartão
+  document.addEventListener('DOMContentLoaded', function() {
+    toggleOwnerTagField();
+    const creditCardSelect = document.getElementById('id_credit_card');
+    if (creditCardSelect) {
+      creditCardSelect.addEventListener('change', toggleOwnerTagField);
+    }
+  });
+</script>
 
 {% endblock %}
 

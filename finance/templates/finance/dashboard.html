@@ -1,0 +1,337 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<!-- Filtros de Período -->
+<div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
+  <form method="get" action="">
+    <div style="display: flex; gap: 15px; align-items: flex-end;">
+      <div>
+        <label for="id_year" style="display: block; font-weight: 600; margin-bottom: 5px;">Ano:</label>
+        <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100" style="padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+      </div>
+      <div>
+        <label for="id_month" style="display: block; font-weight: 600; margin-bottom: 5px;">Mês:</label>
+        <select id="id_month" name="month" style="padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+          <option value="1" {% if month == 1 %}selected{% endif %}>Janeiro</option>
+          <option value="2" {% if month == 2 %}selected{% endif %}>Fevereiro</option>
+          <option value="3" {% if month == 3 %}selected{% endif %}>Março</option>
+          <option value="4" {% if month == 4 %}selected{% endif %}>Abril</option>
+          <option value="5" {% if month == 5 %}selected{% endif %}>Maio</option>
+          <option value="6" {% if month == 6 %}selected{% endif %}>Junho</option>
+          <option value="7" {% if month == 7 %}selected{% endif %}>Julho</option>
+          <option value="8" {% if month == 8 %}selected{% endif %}>Agosto</option>
+          <option value="9" {% if month == 9 %}selected{% endif %}>Setembro</option>
+          <option value="10" {% if month == 10 %}selected{% endif %}>Outubro</option>
+          <option value="11" {% if month == 11 %}selected{% endif %}>Novembro</option>
+          <option value="12" {% if month == 12 %}selected{% endif %}>Dezembro</option>
+        </select>
+      </div>
+      <div>
+        <button type="submit" style="padding: 6px 12px;">Aplicar</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<style>
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 2.25fr 2.25fr 2fr;
+    gap: 20px;
+    margin-bottom: 30px;
+  }
+
+  @media (max-width: 1200px) {
+    .dashboard-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .dashboard-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .dashboard-card h2 {
+    margin-top: 0;
+    font-size: 18px;
+    color: #283593;
+    border-bottom: 2px solid #e8eaf6;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+  }
+
+  .metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .metric:last-child {
+    border-bottom: none;
+  }
+
+  .metric-label {
+    font-weight: 600;
+    color: #555;
+  }
+
+  .metric-value {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .metric-value.positive {
+    color: #2e7d32;
+  }
+
+  .metric-value.negative {
+    color: #c62828;
+  }
+
+  .metric-value.neutral {
+    color: #283593;
+  }
+
+  .recent-transactions {
+    margin-top: 10px;
+  }
+
+  .transaction-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 14px;
+  }
+
+  .transaction-item:last-child {
+    border-bottom: none;
+  }
+
+  .invoice-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .invoice-item:last-child {
+    border-bottom: none;
+  }
+
+  .invoice-card {
+    font-weight: 600;
+  }
+
+  .invoice-amount {
+    font-size: 16px;
+    font-weight: 700;
+    color: #c62828;
+  }
+
+  .no-data {
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+  }
+
+  #id_month {
+    height: 30px;
+  }
+</style>
+
+<!-- Resumo Financeiro -->
+<div class="dashboard-grid">
+  <div class="dashboard-card">
+    <h2>💰 Resumo Financeiro</h2>
+    <div class="metric">
+      <span class="metric-label">Saldo Atual</span>
+      <span class="metric-value neutral">R$ {{ total_balance|floatformat:2 }}</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Receitas do Mês</span>
+      <span class="metric-value positive">R$ {{ month_income|floatformat:2 }}</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Despesas do Mês</span>
+      <span class="metric-value negative">- R$ {{ month_expenses|floatformat:2 }}</span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Saldo do Mês</span>
+      <span class="metric-value {% if month_balance >= 0 %}positive{% else %}negative{% endif %}">
+        R$ {{ month_balance|floatformat:2 }}
+      </span>
+    </div>
+  </div>
+
+  <div class="dashboard-card">
+    <h2>📊 Planejamento</h2>
+    <div class="metric">
+      <span class="metric-label">Saldo Projetado</span>
+      <span class="metric-value {% if projected_balance >= 0 %}positive{% else %}negative{% endif %}">
+        R$ {{ projected_balance|floatformat:2 }}
+      </span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Receitas Planejadas</span>
+      <span class="metric-value {% if income_planned_percent <= 100 %}positive{% else %}negative{% endif %}">
+        R$ {{ income_budget|floatformat:2 }} <span style="font-size: 14px; font-weight: 500;">({{ income_planned_percent|floatformat:1 }}%)</span>
+      </span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Despesas Planejadas</span>
+      <span class="metric-value {% if expense_planned_percent <= 100 %}positive{% else %}negative{% endif %}">
+        R$ {{ expense_budget|floatformat:2 }} <span style="font-size: 14px; font-weight: 500;">({{ expense_planned_percent|floatformat:1 }}%)</span>
+      </span>
+    </div>
+    <div class="metric">
+      <span class="metric-label">Saldo Planejado</span>
+      <span class="metric-value {% if budget_diff >= 0 %}positive{% else %}negative{% endif %}">
+        R$ {{ budget_diff|floatformat:2 }}
+      </span>
+    </div>
+  </div>
+
+  <div class="dashboard-card">
+    <h2>💳 Faturas dos Cartões</h2>
+    {% if all_invoices %}
+      {% for invoice in all_invoices %}
+        <div class="invoice-item">
+          <div>
+            <div class="invoice-card">{{ invoice.card_name }}</div>
+            <div style="font-size: 12px; color: #666;">
+              {{ invoice.month }}/{{ invoice.year }}
+              {% if invoice.is_paid %}
+                <span style="color: #4caf50; font-weight: 600; margin-left: 5px;">✓ Paga</span>
+              {% else %}
+                <span style="color: #ff9800; font-weight: 600; margin-left: 5px;">⚠ Pendente</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="invoice-amount" style="{% if invoice.is_paid %}color: #666;{% endif %}">R$ {{ invoice.total|floatformat:2 }}</div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="no-data">Nenhuma fatura no período</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Gráfico de Subcategorias -->
+<div class="dashboard-card" style="margin-bottom: 30px;">
+  <h2>📊 Gasto vs Orçado por Subcategoria</h2>
+  <canvas id="subcategoriesChart" style="max-height: 500px;"></canvas>
+</div>
+
+<!-- Últimas Transações -->
+<div class="dashboard-card">
+  <h2>🕒 Últimas Transações</h2>
+  {% if recent_transactions %}
+    <div class="recent-transactions">
+      {% for t in recent_transactions %}
+        <div class="transaction-item">
+          <div>
+            <span style="font-weight: 600;">{{ t.date|date:"d/m/Y" }}</span> - 
+            {{ t.description|default:"Sem descrição" }}
+            <span style="color: #666; font-size: 12px;">({{ t.subcategory.category.name }})</span>
+          </div>
+          <div style="font-weight: 700; {% if t.type == 'IN' %}color: #2e7d32;{% else %}color: #c62828;{% endif %}">
+            {% if t.type == 'EX' %}-{% endif %}R$ {{ t.amount|floatformat:2 }}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="no-data">Nenhuma transação registrada</div>
+  {% endif %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  // Dados do gráfico
+  const chartData = {{ subcategories_chart_data|safe }};
+  
+  if (chartData && chartData.length > 0) {
+    const labels = chartData.map(item => item.name);
+    const spentData = chartData.map(item => item.spent);
+    const budgetData = chartData.map(item => item.budget);
+    
+    // Configuração do gráfico
+    const ctx = document.getElementById('subcategoriesChart');
+    if (ctx) {
+      new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Gasto',
+              data: spentData,
+              backgroundColor: 'rgba(198, 40, 40, 0.7)',
+              borderColor: 'rgba(198, 40, 40, 1)',
+              borderWidth: 1
+            },
+            {
+              label: 'Orçado',
+              data: budgetData,
+              backgroundColor: 'rgba(46, 125, 50, 0.7)',
+              borderColor: 'rgba(46, 125, 50, 1)',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return 'R$ ' + value.toFixed(2);
+                }
+              }
+            },
+            x: {
+              ticks: {
+                maxRotation: 45,
+                minRotation: 45,
+                font: {
+                  size: 10
+                }
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.dataset.label + ': R$ ' + context.parsed.y.toFixed(2);
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+</script>
+{% endblock %}
+

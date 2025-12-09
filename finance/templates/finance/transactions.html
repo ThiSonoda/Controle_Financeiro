@@ -17,9 +17,9 @@
 <!-- Card selector nav (Débito + Credit Cards) -->
 <div style="margin: 12px 0 20px 0;">
   <div id="card_selector" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-    <button type="button" class="card-btn" data-card-id="">Débito</button>
+    <button type="button" class="card-btn" data-card-id="" data-card-name="">Débito</button>
     {% for card in credit_cards %}
-      <button type="button" class="card-btn" data-card-id="{{ card.id }}">{{ card.name }}</button>
+      <button type="button" class="card-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}">{{ card.name }}</button>
     {% endfor %}
   </div>
 </div>
@@ -43,6 +43,15 @@
     padding: 8px 10px;
     border: 1px solid #ccc;
     border-radius: 4px;
+    font-size: 16px;
+  }
+   /* Altura específica para o campo de subcategoria */
+   #id_subcategory {
+    height: 35px;
+  }
+    /* Altura específica para o campo de Tipo */
+    #id_type {
+    height: 40px;
   }
 
   .transactions-layout button { padding: 8px 14px; border-radius: 4px; }
@@ -74,81 +83,105 @@
 <div class="transactions-layout">
   <div class="left-column">
     <form method="post" action="">
-  {% csrf_token %}
-  <div style="display: flex; gap: 16px;">
-    <div style="flex: 1;">
-      <label for="id_date">Data:</label>
-      <input type="date" id="id_date" name="date" required>
-    </div>
+      {% csrf_token %}
+      <div style="display: flex; gap: 16px;">
+        <div style="flex: 1;">
+          <label for="id_date">Data:</label>
+          <input type="date" id="id_date" name="date" required value="{{ default_date }}">
+        </div>
 
-    <div style="flex: 1;">
-      <label for="id_amount">Valor:</label>
-      <input type="number" id="id_amount" name="amount" step="0.01" min="0" required>
-    </div>
-  </div>
-
-  <div style="display: flex; gap: 16px;">
-    <div style="flex: 1;">
-      <label for="id_type">Tipo:</label>
-      <select id="id_type" name="type" required>
-        <option value="EX">Despesa</option>
-        <option value="IN">Receita</option>
-      </select>
-    </div>
-
-    <div style="flex: 1;">
-      <label for="id_subcategory">Subcategoria:</label>
-      <select id="id_subcategory" name="subcategory" required>
-        <option value="">-- selecione --</option>
-        {% for subcat in subcategories %}
-          <option value="{{ subcat.id }}">{{ subcat.category.name }} - {{ subcat.name }}{% if subcat.category.is_income %} (receita){% endif %}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
-
-  <!-- <div>
-    <label for="id_account">Conta:</label>
-    <select id="id_account" name="account" required>
-      <option value="">-- selecione --</option>
-      {% for a in accounts %}
-        <option value="{{ a.id }}">{{ a.name }}</option>
-      {% endfor %}
-    </select>
-  </div> -->
-
-  <!-- credit_card select removed: selection is done via the card selector nav above -->
-
-  <div>
-    <label for="id_description">Descrição:</label>
-    <input type="text" id="id_description" name="description">
-  </div>
-
-  <fieldset id="installment_fieldset" style="margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; display: none;">
-    <legend>Compra parcelada no cartão</legend>
-
-    <div>
-      <label>
-        <input type="checkbox" name="is_installment" id="id_is_installment" onchange="toggleInstallmentFields()">
-        Lançar como compra parcelada?
-      </label>
-    </div>
-
-    <div id="installment_fields" style="margin-top: 8px; display: none;">
-      <div>
-        <label for="id_installments">Número de parcelas:</label>
-        <input type="number" id="id_installments" name="installments" min="2" value="2">
+        <div style="flex: 1;">
+          <label for="id_type">Tipo:</label>
+          <select id="id_type" name="type" required>
+            <option value="EX">Despesa</option>
+            <option value="IN">Receita</option>
+          </select>
+        </div>
       </div>
-      <small>
-        O valor informado acima será considerado o <strong>valor total da compra</strong>.
-        O sistema irá criar uma transação por parcela, em meses consecutivos.
-      </small>
-    </div>
-  </fieldset>
 
-  <div style="margin-top: 12px;">
-    <button type="submit">Salvar</button>
-  </div>
+      <div style="display: flex; gap: 16px;">
+        <div style="flex: 1;">
+          <label for="id_amount">Valor:</label>
+          <input type="number" id="id_amount" name="amount" step="0.01" min="0" required>
+        </div>
+
+        <div style="flex: 1;">
+          <label for="id_subcategory">Subcategoria:</label>
+          <select id="id_subcategory" name="subcategory" required>
+            <option value="">-- selecione --</option>
+            {% for subcat in subcategories %}
+              <option value="{{ subcat.id }}">{{ subcat.name }} - {{ subcat.category.name }}{% if subcat.category.is_income %} (receita){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- <div>
+        <label for="id_account">Conta:</label>
+        <select id="id_account" name="account" required>
+          <option value="">-- selecione --</option>
+          {% for a in accounts %}
+            <option value="{{ a.id }}">{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div> -->
+
+      <!-- credit_card select removed: selection is done via the card selector nav above -->
+
+      <div>
+        <label for="id_description">Descrição:</label>
+        <input type="text" id="id_description" name="description">
+      </div>
+
+      <div>
+        <label for="id_comment">Comentário (opcional):</label>
+        <textarea id="id_comment" name="comment" rows="3" placeholder="Adicione um comentário sobre este lançamento..."></textarea>
+      </div>
+
+      <div id="owner_tag_field" style="display: none;">
+        <label for="id_owner_tag">Tag (obrigatório para cartão Bradesco):</label>
+        <select id="id_owner_tag" name="owner_tag" required>
+          <option value="">-- selecione --</option>
+          <option value="Thi">Thiago (Thi)</option>
+          <option value="Tha">Thaís (Tha)</option>
+        </select>
+      </div>
+
+      <fieldset id="installment_fieldset" style="margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; display: none;">
+        <legend>Compra parcelada no cartão</legend>
+
+        <div>
+          <label>
+            <input type="checkbox" name="is_installment" id="id_is_installment" onchange="toggleInstallmentFields()">
+            Lançar como compra parcelada?
+          </label>
+        </div>
+
+        <div id="installment_fields" style="margin-top: 8px; display: none;">
+          <div style="margin-bottom: 10px;">
+            <label for="id_installments">Número de parcelas:</label>
+            <input type="number" id="id_installments" name="installments" min="2" value="2">
+          </div>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600;">O valor informado é:</label>
+            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+              <input type="radio" name="amount_type" value="total" checked>
+              <span>Valor Total da Compra</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input type="radio" name="amount_type" value="installment">
+              <span>Valor de Cada Parcela</span>
+            </label>
+          </div>
+          <small>
+            O sistema irá criar uma transação por parcela, em meses consecutivos.
+          </small>
+        </div>
+      </fieldset>
+
+      <div style="margin-top: 12px;">
+        <button type="submit">Salvar</button>
+      </div>
 
     </form>
 
@@ -163,7 +196,7 @@
           {% for a in accounts %}
             <li style="display:flex; justify-content:space-between; padding:6px 8px; border-radius:4px; background:#fff; margin-bottom:6px; align-items:center;">
               <span style="font-weight:600;">{{ a.name }}</span>
-              <span style="font-family: monospace;">R$ {{ a.balance|floatformat:2 }}</span>
+              <span style="font-family: monospace; font-size: 16px;">R$ {{ a.balance|floatformat:2 }}</span>
             </li>
           {% endfor %}
         </ul>
@@ -185,8 +218,8 @@
       <table border="1" cellspacing="0" cellpadding="8" style="width: 100%; margin-bottom: 20px;">
         <thead>
           <tr>
-            <th style="text-align: left;">Cartão</th>
-            <th style="text-align: right;">Total</th>
+            <th style="text-align: center;">Cartão</th>
+            <th style="text-align: center; min-width: 100px;">Total</th>
             <th style="text-align: center;">Status</th>
             <th style="text-align: center;">Ações</th>
           </tr>
@@ -196,11 +229,8 @@
             {% if invoice.count > 0 %}
               <tr>
                 <td>{{ invoice.card.name }}</td>
-                <td style="text-align: right; font-weight: bold;">
+                <td style="text-align: right; font-weight: bold; min-width: 100px;">
                   R$ {{ invoice.total|floatformat:2 }}
-                  <small style="display: block; font-weight: normal; color: #666;">
-                    ({{ invoice.count }} lançamento{% if invoice.count > 1 %}s{% endif %})
-                  </small>
                 </td>
                 <td style="text-align: center;">
                   {% if invoice.is_paid %}
@@ -243,6 +273,29 @@
 
 <h2>Últimos lançamentos</h2>
 
+<div style="margin-bottom: 15px;">
+  <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+    <input type="checkbox" 
+           id="show_next_month" 
+           {% if show_next_month %}checked{% endif %}
+           onchange="toggleNextMonth()"
+           style="width: auto; margin: 0;">
+    <span>Mostrar mês seguinte</span>
+  </label>
+  <script>
+    function toggleNextMonth() {
+      const checkbox = document.getElementById('show_next_month');
+      const url = new URL(window.location.href);
+      if (checkbox.checked) {
+        url.searchParams.set('next_month', '1');
+      } else {
+        url.searchParams.delete('next_month');
+      }
+      window.location.href = url.toString();
+    }
+  </script>
+</div>
+
 {% if transactions %}
   <table border="1" cellspacing="0" cellpadding="4">
     <thead>
@@ -250,9 +303,8 @@
         <th>Data Lançamento</th>
         <th>Data Pagamento</th>
         <th>Tipo</th>
-        <th>Valor</th>
+        <th style="min-width: 100px;">Valor</th>
         <th>Categoria</th>
-        <th>Conta</th>
         <th>Cartão</th>
         <th>Descrição</th>
         <th>Ações</th>
@@ -279,18 +331,18 @@
               Despesa
             {% endif %}
           </td>
-          <td>
+          <td style="min-width: 100px;">
             {% if t.type == "EX" %}-{% endif %}
             R$ {{ t.amount }}
           </td>
-          <td>
+          <td style="text-align: center;">
             {% if t.subcategory %}
               {{ t.subcategory.category.name }} - {{ t.subcategory.name }}
             {% else %}
               {{ t.category.name|default:"-" }}
             {% endif %}
           </td>
-          <td>{{ t.account.name }}</td>
+
           <td>{{ t.credit_card.name|default:"-" }}</td>
           <td>{{ t.description }}</td>
           <td>
@@ -303,6 +355,16 @@
         </tr>
       {% endfor %}
     </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3" style="font-weight: bold; text-align: right;">Total</td>
+        <td style="font-weight: bold; min-width: 100px;">
+          R$ {{ total_signed_amount|floatformat:2 }}
+        </td>
+        <td colspan="3"></td>
+        <td></td>
+      </tr>
+    </tfoot>
   </table>
 {% else %}
   <p>Nenhum lançamento encontrado.</p>
@@ -324,9 +386,10 @@
     const buttons = Array.from(selector.querySelectorAll('.card-btn'));
     const storageKey = 'selected_card_id';
 
-    function setActive(button){
+    function setActive(button, doReload = false){
       buttons.forEach(b => b.classList.toggle('active', b === button));
       const id = button.getAttribute('data-card-id') || '';
+      const cardName = button.getAttribute('data-card-name') || '';
       try { localStorage.setItem(storageKey, id); } catch(e) {}
       
       // Mostrar/ocultar opção de compra parcelada baseado na seleção
@@ -346,9 +409,37 @@
           }
         }
       }
+
+      // Aplicar filtro da tabela de últimos lançamentos conforme seleção do nav
+      if (doReload) {
+        const url = new URL(window.location.href);
+        if (id && id.trim() !== '') {
+          url.searchParams.set('payment_method', id);
+        } else {
+          url.searchParams.set('payment_method', 'debit');
+        }
+        window.location.href = url.toString();
+        return; // evita execução extra após intenção de recarregar
+      }
+
+      // Mostrar/ocultar campo de tag baseado no cartão selecionado
+      const ownerTagField = document.getElementById('owner_tag_field');
+      const ownerTagSelect = document.getElementById('id_owner_tag');
+      if (ownerTagField && ownerTagSelect) {
+        // Verificar se o cartão é Bradesco (comparação case-insensitive)
+        const isBradesco = cardName && cardName.toLowerCase().includes('bradesco');
+        if (isBradesco) {
+          ownerTagField.style.display = 'block';
+          ownerTagSelect.required = true;
+        } else {
+          ownerTagField.style.display = 'none';
+          ownerTagSelect.required = false;
+          ownerTagSelect.value = ''; // Limpar valor quando não é Bradesco
+        }
+      }
     }
 
-    buttons.forEach(btn => btn.addEventListener('click', function(){ setActive(btn); }));
+    buttons.forEach(btn => btn.addEventListener('click', function(){ setActive(btn, true); }));
 
     // Initialize
     let saved = null;

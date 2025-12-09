@@ -72,14 +72,14 @@ class Migration(migrations.Migration):
                 migrations.RunSQL(
                     sql="ALTER TABLE finance_monthlybudget DROP COLUMN category_id;",
                     reverse_sql="ALTER TABLE finance_monthlybudget ADD COLUMN category_id INTEGER REFERENCES finance_category(id);",
-                ),
+        ),
             ],
             state_operations=[
                 # Operação no estado do modelo: remove o campo category
-                migrations.RemoveField(
-                    model_name='monthlybudget',
-                    name='category',
-                ),
+        migrations.RemoveField(
+            model_name='monthlybudget',
+            name='category',
+        ),
             ],
         ),
         

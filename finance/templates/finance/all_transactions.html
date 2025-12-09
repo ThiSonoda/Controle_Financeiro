@@ -1,0 +1,242 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Todos os Lançamentos</h1>
+
+<style>
+  .filters-container {
+    background-color: #f5f5f5;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+  }
+  .filters-row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin-bottom: 10px;
+  }
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 150px;
+  }
+  .filter-group label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    font-size: 14px;
+  }
+  .filter-group select, 
+  .filter-group input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    height: 32px;
+    line-height: 1.4;
+  }
+  .filter-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+</style>
+
+<div class="filters-container">
+  <h3 style="margin-top: 0; margin-bottom: 15px;">Filtros</h3>
+  <form method="get" action="">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label for="id_year">Ano:</label>
+        <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100">
+      </div>
+      <div class="filter-group">
+        <label for="id_month">Mês:</label>
+        <select id="id_month" name="month">
+          <option value="0" {% if month == 0 %}selected{% endif %}>Todos</option>
+          <option value="1" {% if month == 1 %}selected{% endif %}>Janeiro</option>
+          <option value="2" {% if month == 2 %}selected{% endif %}>Fevereiro</option>
+          <option value="3" {% if month == 3 %}selected{% endif %}>Março</option>
+          <option value="4" {% if month == 4 %}selected{% endif %}>Abril</option>
+          <option value="5" {% if month == 5 %}selected{% endif %}>Maio</option>
+          <option value="6" {% if month == 6 %}selected{% endif %}>Junho</option>
+          <option value="7" {% if month == 7 %}selected{% endif %}>Julho</option>
+          <option value="8" {% if month == 8 %}selected{% endif %}>Agosto</option>
+          <option value="9" {% if month == 9 %}selected{% endif %}>Setembro</option>
+          <option value="10" {% if month == 10 %}selected{% endif %}>Outubro</option>
+          <option value="11" {% if month == 11 %}selected{% endif %}>Novembro</option>
+          <option value="12" {% if month == 12 %}selected{% endif %}>Dezembro</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="id_type">Tipo:</label>
+        <select id="id_type" name="type">
+          <option value="">Todos</option>
+          <option value="IN" {% if filter_type == "IN" %}selected{% endif %}>Receita</option>
+          <option value="EX" {% if filter_type == "EX" %}selected{% endif %}>Despesa</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="id_credit_card">Cartão:</label>
+        <select id="id_credit_card" name="credit_card">
+          <option value="">Todos</option>
+          <option value="debit" {% if filter_credit_card == "debit" %}selected{% endif %}>Débito</option>
+          {% for card in credit_cards %}
+            <option value="{{ card.id }}" {% if filter_credit_card|stringformat:"s" == card.id|stringformat:"s" %}selected{% endif %}>{{ card.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="id_status">Status:</label>
+        <select id="id_status" name="status">
+          <option value="">Todos</option>
+          <option value="paid" {% if filter_status == "paid" %}selected{% endif %}>Paga</option>
+          <option value="pending" {% if filter_status == "pending" %}selected{% endif %}>Pendente</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="id_subcategory">Subcategoria:</label>
+        <select id="id_subcategory" name="subcategory">
+          <option value="">Todas</option>
+          {% for subcat in subcategories %}
+            <option value="{{ subcat.id }}" {% if filter_subcategory|stringformat:"s" == subcat.id|stringformat:"s" %}selected{% endif %}>{{ subcat.category.name }} - {{ subcat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="id_installment">Parcelado:</label>
+        <select id="id_installment" name="installment">
+          <option value="">Todos</option>
+          <option value="yes" {% if filter_installment == "yes" %}selected{% endif %}>Sim</option>
+          <option value="no" {% if filter_installment == "no" %}selected{% endif %}>Não</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="id_owner_tag">Tag:</label>
+        <select id="id_owner_tag" name="owner_tag">
+          <option value="">Todas</option>
+          <option value="Thi" {% if filter_owner_tag == "Thi" %}selected{% endif %}>Thiago</option>
+          <option value="Tha" {% if filter_owner_tag == "Tha" %}selected{% endif %}>Thaís</option>
+        </select>
+      </div>
+    </div>
+    <div class="filter-buttons">
+      <button type="submit">Aplicar Filtros</button>
+      <a href="{% url 'finance:all_transactions' %}?year={{ year }}&month={{ month }}" style="padding: 6px 12px; background-color: #666; color: white; border-radius: 4px; text-decoration: none; display: inline-block;">Limpar Filtros</a>
+    </div>
+  </form>
+</div>
+
+<h2 style="margin-top: 0;">{% if month == 0 %}Ano {{ year }} (Todos os meses){% else %}Mês {{ month }}/{{ year }}{% endif %}</h2>
+
+{% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if transactions %}
+  <table border="1" cellspacing="0" cellpadding="4">
+    <thead>
+      <tr>
+        <th>Data Lançamento</th>
+        <th>Data Pagamento</th>
+        <th>Tipo</th>
+        <th style="min-width: 100px;">Valor</th>
+        <th>Categoria</th>
+        <th>Cartão</th>
+        <th>Tag</th>
+        <th>Descrição</th>
+        <th>Comentário</th>
+        <th>Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in transactions %}
+        <tr>
+          <td>{{ t.date|date:"d/m/Y" }}</td>
+          <td>
+            {% if t.payment_date %}
+              {{ t.payment_date|date:"d/m/Y" }}
+              {% if t.date != t.payment_date %}
+                <small style="color: #666; display: block;">(vencimento)</small>
+              {% endif %}
+            {% else %}
+              {{ t.date|date:"d/m/Y" }}
+            {% endif %}
+          </td>
+          <td>
+            {% if t.type == "IN" %}
+              <span style="color: #2e7d32; font-weight: bold;">Receita</span>
+            {% else %}
+              <span style="color: #c62828; font-weight: bold;">Despesa</span>
+            {% endif %}
+          </td>
+          <td style="min-width: 100px;">
+            {% if t.type == "EX" %}-{% endif %}
+            R$ {{ t.amount|floatformat:2 }}
+          </td>
+          <td>
+            {% if t.subcategory %}
+              {{ t.subcategory.category.name }} - {{ t.subcategory.name }}
+            {% else %}
+              {{ t.category.name|default:"-" }}
+            {% endif %}
+          </td>
+          <td>{{ t.credit_card.name|default:"-" }}</td>
+          <td>
+            {% if t.owner_tag %}
+              {{ t.get_owner_tag_display }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>{{ t.description|default:"-" }}</td>
+          <td>
+            {% if t.comment %}
+              <span title="{{ t.comment }}">{{ t.comment|truncatewords:10 }}</span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            {% if t.credit_card %}
+              {% if t.is_paid %}
+                <span style="color: #4caf50;">✓ Paga</span>
+              {% else %}
+                <span style="color: #ff9800;">Pendente</span>
+              {% endif %}
+            {% else %}
+              <span style="color: #4caf50;">✓ Paga</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'finance:edit_transaction' t.id %}" style="margin-right: 8px;">Editar</a>
+            <form method="post" action="{% url 'finance:delete_transaction' t.id %}" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja deletar este lançamento?');">
+              {% csrf_token %}
+              <button type="submit" class="logout-link" style="color: #c62828; padding: 0; margin: 0; background: none; border: none; cursor: pointer; text-decoration: underline;">Deletar</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <p style="margin-top: 15px; color: #666;">
+    Total de lançamentos: {{ transactions|length }}
+  </p>
+{% else %}
+  <p>Nenhum lançamento encontrado.</p>
+{% endif %}
+
+{% endblock %}
+

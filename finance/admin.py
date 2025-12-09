@@ -1,16 +1,16 @@
 from django.contrib import admin
-from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, ActionLog
+from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, ActionLog, CreditCard
 
 admin.site.register(Category)
 admin.site.register(Subcategory)
 admin.site.register(Account)
 
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ('date', 'type', 'subcategory', 'category', 'description', 'amount', 'credit_card', 'is_paid')
+    list_display = ('date', 'type', 'subcategory', 'category', 'description', 'amount', 'credit_card', 'is_paid', 'is_installment')
     list_display_links = ('date', 'type', 'subcategory', 'description', 'amount', 'credit_card')
-    list_filter = ('type', 'subcategory', 'category', 'account', 'credit_card', 'is_paid')
+    list_filter = ('type', 'subcategory', 'category', 'account', 'credit_card', 'is_paid', 'is_installment')
     search_fields = ('description',)
-    list_editable = ('is_paid',)
+    list_editable = ('is_paid', 'is_installment')
     list_per_page = 10
 
 admin.site.register(Transaction, TransactionAdmin)
@@ -26,3 +26,4 @@ class ActionLogAdmin(admin.ModelAdmin):
     ordering = ('-timestamp',)
 
 admin.site.register(ActionLog, ActionLogAdmin)
+admin.site.register(CreditCard)

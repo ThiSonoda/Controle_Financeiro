@@ -1,0 +1,57 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Todos os Logs de Ações</h1>
+
+{% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if logs %}
+  <table border="1" cellspacing="0" cellpadding="4" class="logs-table">
+    <thead>
+      <tr>
+        <th>Data e Hora</th>
+        <th>Usuário</th>
+        <th>Ação</th>
+        <th>Detalhes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+        <tr>
+          <td>{{ log.timestamp|date:"d/m/Y H:i:s" }}</td>
+          <td>
+            {% if log.user %}
+              {{ log.user.username }}
+            {% else %}
+              <span style="color: #999;">Usuário Desconhecido</span>
+            {% endif %}
+          </td>
+          <td>{{ log.action }}</td>
+          <td>
+            {% if log.details %}
+              <span title="{{ log.details }}">{{ log.details }}</span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  
+  <p style="margin-top: 15px; color: #666;">
+    Total de logs: {{ logs|length }}
+  </p>
+{% else %}
+  <p>Nenhum log encontrado.</p>
+{% endif %}
+
+{% endblock %}
+

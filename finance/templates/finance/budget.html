@@ -24,24 +24,30 @@
   <table border="1" cellspacing="0" cellpadding="4">
     <thead>
       <tr>
-        <th>SubCategoria</th>
+        <th>Categoria</th>
+        <th>Subcategorias</th>
         <th>Orçado (R$)</th>
       </tr>
     </thead>
     <tbody>
-      {% for c in subcategories %}
-        <tr>
-          <td>{{ c.category.name }} - {{ c.name }}</td>
-          <td>
-            {% with b=budget_map|get_item:c.id %}
+      {% for cat in categories %}
+        {% for subcat in cat.subcategories %}
+          <tr>
+            {% if forloop.first %}
+              <td rowspan="{{ cat.subcategories|length }}" style="vertical-align: top; font-weight: bold;">
+                {{ cat.category_name }}
+              </td>
+            {% endif %}
+            <td>{{ subcat.name }}</td>
+            <td>
               <input type="number"
-                     name="budget_{{ c.id }}"
+                     name="budget_{{ subcat.id }}"
                      step="0.01"
                      min="0"
-                     value="{% if b %}{{ b.amount }}{% else %}{% endif %}">
-            {% endwith %}
-          </td>
-        </tr>
+                     {% if subcat.budget_amount %}value="{{ subcat.budget_amount }}"{% endif %}>
+            </td>
+          </tr>
+        {% endfor %}
       {% endfor %}
     </tbody>
   </table>

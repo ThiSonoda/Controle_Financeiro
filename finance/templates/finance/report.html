@@ -14,54 +14,262 @@
 
 <hr>
 
-<h2>Mês {{ month }}/{{ year }}</h2>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+  <h2 style="margin: 0;">Mês {{ month }}/{{ year }}</h2>
+  <div>
+    {% if not is_edit_mode %}
+      <a href="?year={{ year }}&month={{ month }}&edit=1" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Editar</a>
+    {% else %}
+      <button type="button" onclick="saveBudget()" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Salvar</button>
+      <a href="?year={{ year }}&month={{ month }}" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Cancelar</a>
+    {% endif %}
+  </div>
+</div>
 
-{% if rows %}
-  <table border="1" cellspacing="0" cellpadding="4">
-    <thead>
-      <tr>
-        <th>Subcategoria</th>
-        <th>Orçado (R$)</th>
-        <th>Gasto (R$)</th>
-        <th>Diferença (Orçado - Gasto)</th>
-        <th>% Utilizado</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in rows %}
-        <tr {% if r.diff < 0 %}style="background-color:#ffd0d0"{% endif %}>
-          <td>{{ r.subcategory_name }}</td>
-          <td>R$ {{ r.budget|floatformat:2 }}</td>
-          <td>R$ {{ r.spent|floatformat:2 }}</td>
-          <td>R$ {{ r.diff|floatformat:2 }}</td>
-          <td>
-            {% if r.percent %}
-              {{ r.percent|floatformat:1 }}%
+<!-- Formulário POST para salvar orçamentos -->
+<form method="post" action="" id="budget-form" style="display: none;">
+  {% csrf_token %}
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="month" value="{{ month }}">
+  <!-- Os campos de orçamento serão adicionados dinamicamente pelo JavaScript -->
+</form>
+
+<!-- Resumo Financeiro -->
+<div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
+  <h3 style="margin-top: 0;">Resumo Financeiro</h3>
+  
+  <!-- Primeira Linha: Valores Reais -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #ddd;">
+    <div>
+      <strong>Saldo Atual:</strong><br>
+      {% if current_balance >= 0 %}
+        <span style="font-size: 18px; color: #2e7d32;">R$ {{ current_balance|floatformat:2 }}</span>
+      {% else %}
+        <span style="font-size: 18px; color: #c62828;">R$ {{ current_balance|floatformat:2 }}</span>
+      {% endif %}
+    </div>
+    <div>
+      <strong>Total de Receitas:</strong><br>
+      <span style="font-size: 18px; color: #2e7d32;">R$ {{ total_income|floatformat:2 }}</span>
+    </div>
+    <div>
+      <strong>Total de Despesas:</strong><br>
+      <span style="font-size: 18px; color: #c62828;">R$ {{ total_expenses|floatformat:2 }}</span>
+    </div>
+    <div>
+      <strong>Diferença:</strong><br>
+      {% if income_expense_diff >= 0 %}
+        <span style="font-size: 18px; color: #2e7d32;">R$ {{ income_expense_diff|floatformat:2 }}</span>
+      {% else %}
+        <span style="font-size: 18px; color: #c62828;">R$ {{ income_expense_diff|floatformat:2 }}</span>
+      {% endif %}
+    </div>
+  </div>
+  
+  <!-- Segunda Linha: Valores Orçados -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+    <div>
+      <strong>Saldo Projetado:</strong><br>
+      {% if projected_balance >= 0 %}
+        <span style="font-size: 18px; color: #2e7d32;">R$ {{ projected_balance|floatformat:2 }}</span>
+      {% else %}
+        <span style="font-size: 18px; color: #c62828;">R$ {{ projected_balance|floatformat:2 }}</span>
+      {% endif %}
+    </div>
+    <div>
+      <strong>Receitas Orçadas:</strong><br>
+      <span style="font-size: 18px; color: #2e7d32;">R$ {{ income_total_budget|floatformat:2 }}</span>
+    </div>
+    <div>
+      <strong>Despesas Orçadas:</strong><br>
+      <span style="font-size: 18px; color: #c62828;">R$ {{ expense_total_budget|floatformat:2 }}</span>
+    </div>
+    <div>
+      <strong>Diferença:</strong><br>
+      {% if budget_diff >= 0 %}
+        <span style="font-size: 18px; color: #2e7d32;">R$ {{ budget_diff|floatformat:2 }}</span>
+      {% else %}
+        <span style="font-size: 18px; color: #c62828;">R$ {{ budget_diff|floatformat:2 }}</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if income_categories or expense_categories %}
+  <!-- Tabela de Receitas -->
+  {% if income_categories %}
+    <h3 style="margin-top: 20px; margin-bottom: 10px;">Receitas</h3>
+    <table border="1" cellspacing="0" cellpadding="4" style="margin-bottom: 30px;">
+      <thead>
+        <tr>
+          <th>Categoria</th>
+          <th>Subcategorias</th>
+          <th>Orçado (R$)</th>
+          <th>Recebido (R$)</th>
+          <th>Diferença (Recebido - Orçado)</th>
+          <th>% Utilizado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in income_categories %}
+          {% for subcat in cat.subcategories %}
+            <tr>
+              {% if forloop.first %}
+                <td rowspan="{{ cat.subcategories|length }}" style="vertical-align: top; font-weight: bold;">
+                  {{ cat.category_name }}
+                </td>
+              {% endif %}
+              <td>{{ subcat.subcategory_name }}</td>
+              <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget }}">
+                {% if is_edit_mode %}
+                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget|floatformat:2 }}" style="width: 100%; box-sizing: border-box;">
+                {% else %}
+                  <span class="budget-text">R$ {{ subcat.budget|floatformat:2 }}</span>
+                {% endif %}
+              </td>
+              <td>R$ {{ subcat.spent|floatformat:2 }}</td>
+              <td>R$ {{ subcat.diff|floatformat:2 }}</td>
+              <td>
+                {% if subcat.percent %}
+                  {{ subcat.percent|floatformat:1 }}%
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2">Total Receitas</th>
+          <th>R$ {{ income_total_budget|floatformat:2 }}</th>
+          <th>R$ {{ income_total_spent|floatformat:2 }}</th>
+          <th>R$ {{ income_total_diff|floatformat:2 }}</th>
+          <th>
+            {% if income_total_percent %}
+              {{ income_total_percent|floatformat:1 }}%
             {% else %}
               -
             {% endif %}
-          </td>
+          </th>
         </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot>
-      <tr>
-        <th>Total</th>
-        <th>R$ {{ total_budget|floatformat:2 }}</th>
-        <th>R$ {{ total_spent|floatformat:2 }}</th>
-        <th>R$ {{ total_diff|floatformat:2 }}</th>
-        <th>
-          {% if total_percent %}
-            {{ total_percent|floatformat:1 }}%
-          {% else %}
-            -
+      </tfoot>
+    </table>
+  {% endif %}
+
+  <!-- Tabela de Despesas -->
+  {% if expense_categories %}
+    <h3 style="margin-top: 20px; margin-bottom: 10px;">Despesas</h3>
+    <table border="1" cellspacing="0" cellpadding="4">
+      <thead>
+        <tr>
+          <th>Categoria</th>
+          <th>Subcategorias</th>
+          <th>Orçado (R$)</th>
+          <th>Gasto (R$)</th>
+          <th>Diferença (Orçado - Gasto)</th>
+          <th>% Utilizado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in expense_categories %}
+          {% for subcat in cat.subcategories %}
+            <tr {% if subcat.diff < 0 %}style="background-color:#ffd0d0"{% endif %}>
+              {% if forloop.first %}
+                <td rowspan="{{ cat.subcategories|length }}" style="vertical-align: top; font-weight: bold;">
+                  {{ cat.category_name }}
+                </td>
+              {% endif %}
+              <td>{{ subcat.subcategory_name }}</td>
+              <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget }}">
+                {% if is_edit_mode %}
+                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget|floatformat:2 }}" style="width: 100%; box-sizing: border-box;">
+                {% else %}
+                  <span class="budget-text">R$ {{ subcat.budget|floatformat:2 }}</span>
+                {% endif %}
+              </td>
+              <td>R$ {{ subcat.spent|floatformat:2 }}</td>
+              <td>R$ {{ subcat.diff|floatformat:2 }}</td>
+              <td>
+                {% if subcat.percent %}
+                  {{ subcat.percent|floatformat:1 }}%
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          {% if cat.subcategories %}
+            <tr style="background-color: #f0f0f0; font-weight: bold;">
+              <td colspan="2" style="text-align: right; padding-right: 10px;">Subtotal {{ cat.category_name }}:</td>
+              <td>R$ {{ cat.total_budget|floatformat:2 }}</td>
+              <td>R$ {{ cat.total_spent|floatformat:2 }}</td>
+              <td>R$ {{ cat.total_diff|floatformat:2 }}</td>
+              <td>
+                {% if cat.total_percent %}
+                  {{ cat.total_percent|floatformat:1 }}%
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
           {% endif %}
-        </th>
-      </tr>
-    </tfoot>
-  </table>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2">Total Despesas</th>
+          <th>R$ {{ expense_total_budget|floatformat:2 }}</th>
+          <th>R$ {{ expense_total_spent|floatformat:2 }}</th>
+          <th>R$ {{ expense_total_diff|floatformat:2 }}</th>
+          <th>
+            {% if expense_total_percent %}
+              {{ expense_total_percent|floatformat:1 }}%
+            {% else %}
+              -
+            {% endif %}
+          </th>
+        </tr>
+      </tfoot>
+    </table>
+  {% endif %}
 {% else %}
   <p>Não há dados para este mês.</p>
+{% endif %}
+
+{% if is_edit_mode %}
+<script>
+function saveBudget() {
+  const form = document.getElementById('budget-form');
+  
+  // Limpar campos existentes (se houver)
+  const existingInputs = form.querySelectorAll('input[name^="budget_"]');
+  existingInputs.forEach(input => input.remove());
+  
+  // Coletar todos os valores de orçamento
+  document.querySelectorAll('.budget-cell').forEach(cell => {
+    const subcategoryId = cell.getAttribute('data-subcategory-id');
+    const input = cell.querySelector('.budget-input');
+    let value = input.value.trim();
+    
+    // Se vazio ou 0, enviar string vazia (será tratado como deletar orçamento)
+    if (value === '' || value === '0' || parseFloat(value) === 0) {
+      value = '';
+    }
+    
+    // Criar campo hidden para o formulário
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = `budget_${subcategoryId}`;
+    hiddenInput.value = value;
+    form.appendChild(hiddenInput);
+  });
+  
+  // Submeter formulário
+  form.submit();
+}
+</script>
 {% endif %}
 
 {% endblock %}
