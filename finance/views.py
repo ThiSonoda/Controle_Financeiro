@@ -12,7 +12,7 @@ from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.contrib import messages
 
-from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, CreditCard, ActionLog
+from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, CreditCard, ActionLog, BudgetTemplate, BudgetTemplateItem
 
 
 def log_action(user, action, details=''):
@@ -871,7 +871,10 @@ def report_view(request):
 
         for subcategory in subcategories:
             field_name = f'budget_{subcategory.id}'
+            comment_field_name = f'comment_{subcategory.id}'
             value_str = request.POST.get(field_name, '').strip()
+            comment_str = request.POST.get(comment_field_name, '').strip()
+            
             if value_str == '':
                 # Se vazio, deletar orçamento
                 amount = None
@@ -904,7 +907,10 @@ def report_view(request):
                     subcategory=subcategory,
                     year=year,
                     month=month,
-                    defaults={'amount': amount},
+                    defaults={
+                        'amount': amount,
+                        'comment': comment_str if comment_str else None
+                    },
                 )
                 action = "Criou" if created else "Atualizou"
                 log_action(
@@ -937,7 +943,7 @@ def report_view(request):
         MonthlyBudget.objects
         .filter(year=year, month=month)
         .select_related('subcategory', 'subcategory__category')
-        .values('subcategory_id', 'subcategory__name', 'subcategory__category_id', 'subcategory__category__name', 'subcategory__category__is_income', 'amount')
+        .values('subcategory_id', 'subcategory__name', 'subcategory__category_id', 'subcategory__category__name', 'subcategory__category__is_income', 'amount', 'comment')
     )
 
     # Criar mapas separados para receitas e despesas
@@ -1014,7 +1020,11 @@ def report_view(request):
         
         # Para receitas, usar o valor da receita; para despesas, usar o valor gasto
         spent = float(income['amount']) if income else (float(exp['amount']) if exp else 0.0)
-        budget = float(bud['amount']) if bud else 0.0
+        # Garantir que budget seja sempre um float, mesmo quando não há orçamento
+        if bud:
+            budget = float(bud['amount'])
+        else:
+            budget = 0.0
         
         # Calcular diferença baseado no tipo de categoria
         # Receitas: Recebido - Orçado
@@ -1038,10 +1048,18 @@ def report_view(request):
             }
         
         # Adicionar subcategoria
+        # Para campos input type="number", precisamos garantir que o valor use ponto como separador decimal
+        # Criar uma versão string do budget com ponto decimal para uso em inputs
+        budget_str = f"{budget:.2f}" if budget else "0.00"
+        # Obter comentário do orçamento
+        budget_comment = bud.get('comment', '') if bud else ''
+        
         categories_dict[category_id]['subcategories'].append({
             'subcategory_id': subcat_id,
             'subcategory_name': subcategory_name,
             'budget': budget,
+            'budget_str': budget_str,  # String formatada com ponto decimal para inputs
+            'budget_comment': budget_comment,  # Comentário do orçamento
             'spent': spent,
             'diff': diff,
             'percent': percent,
@@ -1153,6 +1171,35 @@ def report_view(request):
     # Saldo projetado = Saldo Atual + Receitas Pagas - Despesas Pagas
     projected_balance = current_balance + paid_income - paid_expenses + budget_diff
 
+    # Buscar todos os templates para o modal
+    templates = BudgetTemplate.objects.all().order_by('name')
+    
+    # Buscar todas as subcategorias agrupadas por categoria para os modais
+    all_subcategories = Subcategory.objects.select_related('category').all().order_by('category__name', 'name')
+    subcategories_by_category = {}
+    for subcat in all_subcategories:
+        cat_id = subcat.category.id
+        if cat_id not in subcategories_by_category:
+            subcategories_by_category[cat_id] = {
+                'category_id': cat_id,
+                'category_name': subcat.category.name,
+                'category_is_income': subcat.category.is_income,
+                'subcategories': []
+            }
+        subcategories_by_category[cat_id]['subcategories'].append({
+            'id': subcat.id,
+            'name': subcat.name,
+        })
+    
+    # Ordenar categorias: Receitas primeiro, depois Despesas
+    sorted_subcategories_by_category = sorted(
+        subcategories_by_category.values(),
+        key=lambda c: (
+            not c.get('category_is_income', False),
+            (c['category_name'] or 'Sem categoria').lower()
+        )
+    )
+    
     context = {
         'year': year,
         'month': month,
@@ -1177,6 +1224,8 @@ def report_view(request):
         'income_expense_diff': income_expense_diff,
         'budget_diff': budget_diff,
         'projected_balance': projected_balance,
+        'templates': templates,
+        'subcategories_by_category': sorted_subcategories_by_category,
     }
     return render(request, 'finance/report.html', context)
 
@@ -1563,3 +1612,339 @@ def dashboard_view(request):
         'subcategories_chart_data': json.dumps(subcategories_chart_data),
     }
     return render(request, 'finance/dashboard.html', context)
+
+
+@login_required
+def budget_template_list_view(request):
+    """Lista todos os templates de orçamento (globais)."""
+    from django.http import JsonResponse
+    
+    templates = BudgetTemplate.objects.all().order_by('name')
+    templates_data = []
+    
+    for template in templates:
+        templates_data.append({
+            'id': template.id,
+            'name': template.name,
+            'description': template.description or '',
+            'created_at': template.created_at.strftime('%d/%m/%Y %H:%M'),
+            'updated_at': template.updated_at.strftime('%d/%m/%Y %H:%M'),
+            'item_count': template.items.count(),
+        })
+    
+    return JsonResponse({'templates': templates_data})
+
+
+@login_required
+def budget_template_create_view(request):
+    """Cria um novo template de orçamento."""
+    from django.http import JsonResponse
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+    
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+        
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'success': False, 'error': 'Nome do template é obrigatório'}, status=400)
+        
+        description = data.get('description', '').strip() or None
+        items_data = data.get('items', [])  # Lista de {subcategory_id, amount}
+        
+        # Criar template
+        template = BudgetTemplate.objects.create(
+            name=name,
+            description=description,
+            user=request.user
+        )
+        
+        # Criar itens do template
+        for item_data in items_data:
+            subcategory_id = item_data.get('subcategory_id')
+            amount_str = item_data.get('amount', '0').strip()
+            comment_str = item_data.get('comment', '').strip() or None
+            
+            if not subcategory_id or not amount_str:
+                continue
+            
+            try:
+                amount = Decimal(amount_str.replace(',', '.'))
+                if amount > 0:
+                    BudgetTemplateItem.objects.create(
+                        template=template,
+                        subcategory_id=subcategory_id,
+                        amount=amount,
+                        comment=comment_str
+                    )
+            except (ValueError, Subcategory.DoesNotExist):
+                continue
+        
+        log_action(
+            request.user,
+            f"Criou template de orçamento: {template.name}",
+            f"Template ID: {template.id}, Itens: {template.items.count()}"
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'template_id': template.id,
+            'message': 'Template criado com sucesso'
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def budget_template_edit_view(request, template_id):
+    """Edita um template de orçamento existente."""
+    from django.http import JsonResponse
+    
+    try:
+        template = BudgetTemplate.objects.get(id=template_id)
+    except BudgetTemplate.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Template não encontrado'}, status=404)
+    
+    if request.method == 'GET':
+        # Retornar dados do template
+        items_data = []
+        for item in template.items.select_related('subcategory', 'subcategory__category').all():
+            items_data.append({
+                'subcategory_id': item.subcategory.id,
+                'subcategory_name': str(item.subcategory),
+                'amount': str(item.amount),
+                'comment': item.comment or ''
+            })
+        
+        return JsonResponse({
+            'id': template.id,
+            'name': template.name,
+            'description': template.description or '',
+            'items': items_data
+        })
+    
+    elif request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            
+            name = data.get('name', '').strip()
+            if not name:
+                return JsonResponse({'success': False, 'error': 'Nome do template é obrigatório'}, status=400)
+            
+            description = data.get('description', '').strip() or None
+            items_data = data.get('items', [])
+            
+            # Atualizar template
+            template.name = name
+            template.description = description
+            template.save()
+            
+            # Deletar itens antigos e criar novos
+            template.items.all().delete()
+            
+            for item_data in items_data:
+                subcategory_id = item_data.get('subcategory_id')
+                amount_str = item_data.get('amount', '0').strip()
+                comment_str = item_data.get('comment', '').strip() or None
+                
+                if not subcategory_id or not amount_str:
+                    continue
+                
+                try:
+                    amount = Decimal(amount_str.replace(',', '.'))
+                    if amount > 0:
+                        BudgetTemplateItem.objects.create(
+                            template=template,
+                            subcategory_id=subcategory_id,
+                            amount=amount,
+                            comment=comment_str
+                        )
+                except (ValueError, Subcategory.DoesNotExist):
+                    continue
+            
+            log_action(
+                request.user,
+                f"Editou template de orçamento: {template.name}",
+                f"Template ID: {template.id}, Itens: {template.items.count()}"
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Template atualizado com sucesso'
+            })
+        
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    
+    return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+
+
+@login_required
+def budget_template_delete_view(request, template_id):
+    """Deleta um template de orçamento."""
+    from django.http import JsonResponse
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+    
+    try:
+        template = BudgetTemplate.objects.get(id=template_id)
+        template_name = template.name
+        template.delete()
+        
+        log_action(
+            request.user,
+            f"Deletou template de orçamento: {template_name}",
+            f"Template ID: {template_id}"
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Template deletado com sucesso'
+        })
+    
+    except BudgetTemplate.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Template não encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def budget_template_apply_view(request):
+    """Aplica um template de orçamento ao mês/ano selecionado."""
+    from django.http import JsonResponse
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+    
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+        
+        template_id = data.get('template_id')
+        year = int(data.get('year'))
+        month = int(data.get('month'))
+        replace_mode = data.get('replace_mode', 'empty')  # 'all' ou 'empty'
+        
+        if not template_id:
+            return JsonResponse({'success': False, 'error': 'Template ID é obrigatório'}, status=400)
+        
+        template = BudgetTemplate.objects.get(id=template_id)
+        items = template.items.select_related('subcategory').all()
+        
+        applied_count = 0
+        skipped_count = 0
+        
+        for item in items:
+            # Verificar se já existe orçamento para esta subcategoria
+            existing_budget = MonthlyBudget.objects.filter(
+                subcategory=item.subcategory,
+                year=year,
+                month=month
+            ).first()
+            
+            if replace_mode == 'empty' and existing_budget:
+                # Modo "preencher vazios": pular se já existe
+                skipped_count += 1
+                continue
+            
+            # Criar ou atualizar orçamento
+            MonthlyBudget.objects.update_or_create(
+                user=request.user,
+                subcategory=item.subcategory,
+                year=year,
+                month=month,
+                defaults={
+                    'amount': item.amount,
+                    'comment': item.comment
+                }
+            )
+            applied_count += 1
+        
+        log_action(
+            request.user,
+            f"Aplicou template de orçamento: {template.name}",
+            f"Template ID: {template.id}, Mês/Ano: {month:02d}/{year}, Modo: {replace_mode}, Aplicados: {applied_count}, Ignorados: {skipped_count}"
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Template aplicado com sucesso. {applied_count} orçamentos criados/atualizados.',
+            'applied_count': applied_count,
+            'skipped_count': skipped_count
+        })
+    
+    except BudgetTemplate.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Template não encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def budget_template_save_current_view(request):
+    """Salva o orçamento atual (do mês/ano selecionado) como um novo template."""
+    from django.http import JsonResponse
+    
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+    
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+        
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'success': False, 'error': 'Nome do template é obrigatório'}, status=400)
+        
+        description = data.get('description', '').strip() or None
+        year = int(data.get('year'))
+        month = int(data.get('month'))
+        
+        # Buscar orçamentos do mês/ano
+        budgets = MonthlyBudget.objects.filter(
+            year=year,
+            month=month
+        ).select_related('subcategory')
+        
+        if not budgets.exists():
+            return JsonResponse({'success': False, 'error': 'Não há orçamentos para este mês/ano'}, status=400)
+        
+        # Criar template
+        template = BudgetTemplate.objects.create(
+            name=name,
+            description=description,
+            user=request.user
+        )
+        
+        # Criar itens do template baseados nos orçamentos
+        for budget in budgets:
+            BudgetTemplateItem.objects.create(
+                template=template,
+                subcategory=budget.subcategory,
+                amount=budget.amount,
+                comment=budget.comment
+            )
+        
+        log_action(
+            request.user,
+            f"Salvou orçamento como template: {template.name}",
+            f"Template ID: {template.id}, Mês/Ano: {month:02d}/{year}, Itens: {template.items.count()}"
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'template_id': template.id,
+            'message': f'Template criado com sucesso com {template.items.count()} itens'
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)

@@ -17,5 +17,11 @@ urlpatterns = [
     path('report/', views.report_view, name='report'),
     path('all-transactions/', views.all_transactions_view, name='all_transactions'),
     path('all-logs/', views.all_logs_view, name='all_logs'),
+    path('budget-templates/list/', views.budget_template_list_view, name='budget_template_list'),
+    path('budget-templates/create/', views.budget_template_create_view, name='budget_template_create'),
+    path('budget-templates/<int:template_id>/edit/', views.budget_template_edit_view, name='budget_template_edit'),
+    path('budget-templates/<int:template_id>/delete/', views.budget_template_delete_view, name='budget_template_delete'),
+    path('budget-templates/apply/', views.budget_template_apply_view, name='budget_template_apply'),
+    path('budget-templates/save-current/', views.budget_template_save_current_view, name='budget_template_save_current'),
     # path('credit-cards/', views.credit_cards_view, name='credit_cards'),
 ]

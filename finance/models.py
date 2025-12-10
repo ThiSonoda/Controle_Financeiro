@@ -132,6 +132,7 @@ class MonthlyBudget(models.Model):
     year = models.PositiveSmallIntegerField()
     month = models.PositiveSmallIntegerField()
     amount = models.DecimalField(max_digits=14, decimal_places=2)
+    comment = models.TextField(blank=True, null=True, help_text="Comentário opcional sobre o orçamento")
 
     class Meta:
         unique_together = ('user', 'subcategory', 'year', 'month')
@@ -152,3 +153,36 @@ class ActionLog(models.Model):
     def __str__(self):
         username = self.user.username if self.user else 'Usuário Desconhecido'
         return f"{self.timestamp.strftime('%d/%m/%Y %H:%M:%S')} - {username} - {self.action}"
+
+
+class BudgetTemplate(models.Model):
+    """Template de orçamento com valores pré-definidos por subcategoria."""
+    name = models.CharField(max_length=200, help_text="Nome do template")
+    description = models.TextField(blank=True, null=True, help_text="Descrição opcional do template")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, help_text="Usuário que criou o template (para rastreamento, mas templates são globais)")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Template de Orçamento'
+        verbose_name_plural = 'Templates de Orçamento'
+
+    def __str__(self):
+        return self.name
+
+
+class BudgetTemplateItem(models.Model):
+    """Item de um template de orçamento, contendo o valor para uma subcategoria específica."""
+    template = models.ForeignKey(BudgetTemplate, on_delete=models.CASCADE, related_name='items')
+    subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do orçamento para esta subcategoria")
+    comment = models.TextField(blank=True, null=True, help_text="Comentário opcional sobre o orçamento desta subcategoria")
+
+    class Meta:
+        unique_together = ('template', 'subcategory')
+        verbose_name = 'Item do Template'
+        verbose_name_plural = 'Itens do Template'
+
+    def __str__(self):
+        return f"{self.template.name} - {self.subcategory.name}: R$ {self.amount}"

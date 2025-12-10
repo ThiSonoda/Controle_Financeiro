@@ -20,6 +20,8 @@
     {% if not is_edit_mode %}
       <a href="?year={{ year }}&month={{ month }}&edit=1" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Editar</a>
     {% else %}
+      <button type="button" onclick="openTemplatesModal()" style="padding: 8px 16px; background-color: #9C27B0; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Templates</button>
+      <button type="button" onclick="openSaveTemplateModal()" style="padding: 8px 16px; background-color: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Salvar como Template</button>
       <button type="button" onclick="saveBudget()" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Salvar</button>
       <a href="?year={{ year }}&month={{ month }}" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Cancelar</a>
     {% endif %}
@@ -105,6 +107,9 @@
           <th>Categoria</th>
           <th>Subcategorias</th>
           <th>Orçado (R$)</th>
+          {% if is_edit_mode %}
+          <th>Comentário</th>
+          {% endif %}
           <th>Recebido (R$)</th>
           <th>Diferença (Recebido - Orçado)</th>
           <th>% Utilizado</th>
@@ -120,13 +125,22 @@
                 </td>
               {% endif %}
               <td>{{ subcat.subcategory_name }}</td>
-              <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget }}">
+              <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget|default:0 }}">
                 {% if is_edit_mode %}
-                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget|floatformat:2 }}" style="width: 100%; box-sizing: border-box;">
+                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" style="width: 100%; box-sizing: border-box;">
                 {% else %}
-                  <span class="budget-text">R$ {{ subcat.budget|floatformat:2 }}</span>
+                  <span class="budget-text">R$ {{ subcat.budget|default:0|floatformat:2 }}</span>
                 {% endif %}
               </td>
+              {% if is_edit_mode %}
+              <td>
+                <textarea class="budget-comment-input" 
+                          data-subcategory-id="{{ subcat.subcategory_id }}"
+                          rows="2" 
+                          placeholder="Comentário opcional..."
+                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;">{{ subcat.budget_comment|default:'' }}</textarea>
+              </td>
+              {% endif %}
               <td>R$ {{ subcat.spent|floatformat:2 }}</td>
               <td>R$ {{ subcat.diff|floatformat:2 }}</td>
               <td>
@@ -144,6 +158,9 @@
         <tr>
           <th colspan="2">Total Receitas</th>
           <th>R$ {{ income_total_budget|floatformat:2 }}</th>
+          {% if is_edit_mode %}
+          <th></th>
+          {% endif %}
           <th>R$ {{ income_total_spent|floatformat:2 }}</th>
           <th>R$ {{ income_total_diff|floatformat:2 }}</th>
           <th>
@@ -167,6 +184,9 @@
           <th>Categoria</th>
           <th>Subcategorias</th>
           <th>Orçado (R$)</th>
+          {% if is_edit_mode %}
+          <th>Comentário</th>
+          {% endif %}
           <th>Gasto (R$)</th>
           <th>Diferença (Orçado - Gasto)</th>
           <th>% Utilizado</th>
@@ -182,13 +202,22 @@
                 </td>
               {% endif %}
               <td>{{ subcat.subcategory_name }}</td>
-              <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget }}">
+              <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget|default:0 }}">
                 {% if is_edit_mode %}
-                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget|floatformat:2 }}" style="width: 100%; box-sizing: border-box;">
+                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" style="width: 100%; box-sizing: border-box;">
                 {% else %}
-                  <span class="budget-text">R$ {{ subcat.budget|floatformat:2 }}</span>
+                  <span class="budget-text">R$ {{ subcat.budget|default:0|floatformat:2 }}</span>
                 {% endif %}
               </td>
+              {% if is_edit_mode %}
+              <td>
+                <textarea class="budget-comment-input" 
+                          data-subcategory-id="{{ subcat.subcategory_id }}"
+                          rows="2" 
+                          placeholder="Comentário opcional..."
+                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;">{{ subcat.budget_comment|default:'' }}</textarea>
+              </td>
+              {% endif %}
               <td>R$ {{ subcat.spent|floatformat:2 }}</td>
               <td>R$ {{ subcat.diff|floatformat:2 }}</td>
               <td>
@@ -204,6 +233,9 @@
             <tr style="background-color: #f0f0f0; font-weight: bold;">
               <td colspan="2" style="text-align: right; padding-right: 10px;">Subtotal {{ cat.category_name }}:</td>
               <td>R$ {{ cat.total_budget|floatformat:2 }}</td>
+              {% if is_edit_mode %}
+              <td></td>
+              {% endif %}
               <td>R$ {{ cat.total_spent|floatformat:2 }}</td>
               <td>R$ {{ cat.total_diff|floatformat:2 }}</td>
               <td>
@@ -221,6 +253,9 @@
         <tr>
           <th colspan="2">Total Despesas</th>
           <th>R$ {{ expense_total_budget|floatformat:2 }}</th>
+          {% if is_edit_mode %}
+          <th></th>
+          {% endif %}
           <th>R$ {{ expense_total_spent|floatformat:2 }}</th>
           <th>R$ {{ expense_total_diff|floatformat:2 }}</th>
           <th>
@@ -238,16 +273,223 @@
   <p>Não há dados para este mês.</p>
 {% endif %}
 
+<!-- Modal de Templates -->
+<div id="templatesModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+  <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; max-height: 80vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0;">Templates de Orçamento</h2>
+      <span onclick="closeTemplatesModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    </div>
+    
+    <div id="templatesList" style="margin-bottom: 20px;">
+      <!-- Lista de templates será carregada aqui -->
+    </div>
+    
+    <div style="border-top: 1px solid #ddd; padding-top: 20px;">
+      <h3 style="margin-top: 0;">Criar Novo Template</h3>
+      <form id="createTemplateForm" onsubmit="createTemplate(event)">
+        <div style="margin-bottom: 10px;">
+          <label for="templateName">Nome:</label>
+          <input type="text" id="templateName" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+        </div>
+        <div style="margin-bottom: 10px;">
+          <label for="templateDescription">Descrição (opcional):</label>
+          <textarea id="templateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+        </div>
+        <div style="margin-bottom: 15px; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+          <h4 style="margin-top: 0;">Valores de Orçamento por Subcategoria:</h4>
+          <table border="1" cellspacing="0" cellpadding="4" style="width: 100%; font-size: 14px;">
+            <thead>
+              <tr>
+                <th>Categoria</th>
+                <th>Subcategoria</th>
+                <th>Valor (R$)</th>
+                <th>Comentário</th>
+              </tr>
+            </thead>
+            <tbody id="createTemplateSubcategories">
+              {% for cat in subcategories_by_category %}
+                {% for subcat in cat.subcategories %}
+                  <tr>
+                    {% if forloop.first %}
+                      <td rowspan="{{ cat.subcategories|length }}" style="vertical-align: top; font-weight: bold;">
+                        {{ cat.category_name }}
+                      </td>
+                    {% endif %}
+                    <td>{{ subcat.name }}</td>
+                    <td>
+                      <input type="number" 
+                             class="template-budget-input" 
+                             data-subcategory-id="{{ subcat.id }}"
+                             data-category-is-income="{% if cat.category_is_income %}true{% else %}false{% endif %}"
+                             step="0.01" 
+                             min="0" 
+                             value="" 
+                             oninput="updateCreateTemplateTotals()"
+                             style="width: 100%; padding: 4px; box-sizing: border-box;">
+                    </td>
+                    <td>
+                      <textarea class="template-comment-input" 
+                                data-subcategory-id="{{ subcat.id }}"
+                                rows="2" 
+                                placeholder="Comentário opcional..."
+                                style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;"></textarea>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-bottom: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 4px; border: 1px solid #ddd;">
+          <h4 style="margin-top: 0; margin-bottom: 10px;">Resumo do Template:</h4>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+            <div>
+              <strong>Total Receitas:</strong><br>
+              <span id="createTemplateTotalIncome" style="font-size: 16px; color: #2e7d32;">R$ 0.00</span>
+            </div>
+            <div>
+              <strong>Total Despesas:</strong><br>
+              <span id="createTemplateTotalExpenses" style="font-size: 16px; color: #c62828;">R$ 0.00</span>
+            </div>
+            <div>
+              <strong>Saldo Final:</strong><br>
+              <span id="createTemplateBalance" style="font-size: 16px; font-weight: bold;">R$ 0.00</span>
+            </div>
+          </div>
+        </div>
+        <button type="submit" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Criar Template</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para Salvar Template Atual -->
+<div id="saveTemplateModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+  <div style="background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0;">Salvar Orçamento como Template</h2>
+      <span onclick="closeSaveTemplateModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    </div>
+    
+    <form id="saveTemplateForm" onsubmit="saveCurrentAsTemplate(event)">
+      <div style="margin-bottom: 10px;">
+        <label for="saveTemplateName">Nome:</label>
+        <input type="text" id="saveTemplateName" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label for="saveTemplateDescription">Descrição (opcional):</label>
+        <textarea id="saveTemplateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+      </div>
+      <div style="text-align: right;">
+        <button type="button" onclick="closeSaveTemplateModal()" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Cancelar</button>
+        <button type="submit" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal para Editar Template -->
+<div id="editTemplateModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+  <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; max-height: 80vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0;">Editar Template</h2>
+      <span onclick="closeEditTemplateModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    </div>
+    
+    <form id="editTemplateForm" onsubmit="updateTemplate(event)">
+      <input type="hidden" id="editTemplateId">
+      <div style="margin-bottom: 10px;">
+        <label for="editTemplateName">Nome:</label>
+        <input type="text" id="editTemplateName" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+      </div>
+      <div style="margin-bottom: 10px;">
+        <label for="editTemplateDescription">Descrição (opcional):</label>
+        <textarea id="editTemplateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+      </div>
+      <div style="margin-bottom: 15px; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
+        <h4 style="margin-top: 0;">Valores de Orçamento por Subcategoria:</h4>
+        <table border="1" cellspacing="0" cellpadding="4" style="width: 100%; font-size: 14px;">
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              <th>Subcategoria</th>
+              <th>Valor (R$)</th>
+              <th>Comentário</th>
+            </tr>
+          </thead>
+          <tbody id="editTemplateSubcategories">
+            {% for cat in subcategories_by_category %}
+              {% for subcat in cat.subcategories %}
+                <tr>
+                  {% if forloop.first %}
+                    <td rowspan="{{ cat.subcategories|length }}" style="vertical-align: top; font-weight: bold;">
+                      {{ cat.category_name }}
+                    </td>
+                  {% endif %}
+                  <td>{{ subcat.name }}</td>
+                  <td>
+                    <input type="number" 
+                           class="edit-template-budget-input" 
+                           data-subcategory-id="{{ subcat.id }}"
+                           data-category-is-income="{% if cat.category_is_income %}true{% else %}false{% endif %}"
+                           step="0.01" 
+                           min="0" 
+                           value="" 
+                           oninput="updateEditTemplateTotals()"
+                           style="width: 100%; padding: 4px; box-sizing: border-box;">
+                  </td>
+                  <td>
+                    <textarea class="edit-template-comment-input" 
+                              data-subcategory-id="{{ subcat.id }}"
+                              rows="2" 
+                              placeholder="Comentário opcional..."
+                              style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;"></textarea>
+                  </td>
+                </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-bottom: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 4px; border: 1px solid #ddd;">
+        <h4 style="margin-top: 0; margin-bottom: 10px;">Resumo do Template:</h4>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+          <div>
+            <strong>Total Receitas:</strong><br>
+            <span id="editTemplateTotalIncome" style="font-size: 16px; color: #2e7d32;">R$ 0.00</span>
+          </div>
+          <div>
+            <strong>Total Despesas:</strong><br>
+            <span id="editTemplateTotalExpenses" style="font-size: 16px; color: #c62828;">R$ 0.00</span>
+          </div>
+          <div>
+            <strong>Saldo Final:</strong><br>
+            <span id="editTemplateBalance" style="font-size: 16px; font-weight: bold;">R$ 0.00</span>
+          </div>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <button type="button" onclick="closeEditTemplateModal()" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Cancelar</button>
+        <button type="submit" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% if is_edit_mode %}
 <script>
+const currentYear = {{ year }};
+const currentMonth = {{ month }};
+
 function saveBudget() {
   const form = document.getElementById('budget-form');
   
   // Limpar campos existentes (se houver)
-  const existingInputs = form.querySelectorAll('input[name^="budget_"]');
+  const existingInputs = form.querySelectorAll('input[name^="budget_"], input[name^="comment_"]');
   existingInputs.forEach(input => input.remove());
   
-  // Coletar todos os valores de orçamento
+  // Coletar todos os valores de orçamento e comentários
   document.querySelectorAll('.budget-cell').forEach(cell => {
     const subcategoryId = cell.getAttribute('data-subcategory-id');
     const input = cell.querySelector('.budget-input');
@@ -258,16 +500,420 @@ function saveBudget() {
       value = '';
     }
     
-    // Criar campo hidden para o formulário
+    // Criar campo hidden para o valor do orçamento
     const hiddenInput = document.createElement('input');
     hiddenInput.type = 'hidden';
     hiddenInput.name = `budget_${subcategoryId}`;
     hiddenInput.value = value;
     form.appendChild(hiddenInput);
+    
+    // Coletar comentário se existir
+    const commentInput = document.querySelector(`.budget-comment-input[data-subcategory-id="${subcategoryId}"]`);
+    if (commentInput) {
+      const commentValue = commentInput.value.trim();
+      const hiddenCommentInput = document.createElement('input');
+      hiddenCommentInput.type = 'hidden';
+      hiddenCommentInput.name = `comment_${subcategoryId}`;
+      hiddenCommentInput.value = commentValue;
+      form.appendChild(hiddenCommentInput);
+    }
   });
   
   // Submeter formulário
   form.submit();
+}
+
+function openTemplatesModal() {
+  document.getElementById('templatesModal').style.display = 'block';
+  loadTemplates();
+}
+
+function closeTemplatesModal() {
+  document.getElementById('templatesModal').style.display = 'none';
+}
+
+function openSaveTemplateModal() {
+  document.getElementById('saveTemplateModal').style.display = 'block';
+}
+
+function closeSaveTemplateModal() {
+  document.getElementById('saveTemplateModal').style.display = 'none';
+  document.getElementById('saveTemplateForm').reset();
+}
+
+function openEditTemplateModal(templateId) {
+  document.getElementById('editTemplateModal').style.display = 'block';
+  loadTemplateForEdit(templateId);
+}
+
+function closeEditTemplateModal() {
+  document.getElementById('editTemplateModal').style.display = 'none';
+  document.getElementById('editTemplateForm').reset();
+  // Limpar todos os valores dos inputs
+  document.querySelectorAll('.edit-template-budget-input').forEach(input => {
+    input.value = '';
+  });
+  document.querySelectorAll('.edit-template-comment-input').forEach(textarea => {
+    textarea.value = '';
+  });
+  // Resetar totais
+  updateEditTemplateTotals();
+}
+
+function loadTemplates() {
+  fetch('{% url "finance:budget_template_list" %}')
+    .then(response => response.json())
+    .then(data => {
+      const listDiv = document.getElementById('templatesList');
+      if (data.templates.length === 0) {
+        listDiv.innerHTML = '<p>Nenhum template cadastrado.</p>';
+        return;
+      }
+      
+      let html = '<h3 style="margin-top: 0;">Templates Disponíveis</h3>';
+      data.templates.forEach(template => {
+        html += `
+          <div style="border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div style="flex: 1;">
+                <h4 style="margin: 0 0 5px 0;">${escapeHtml(template.name)}</h4>
+                ${template.description ? `<p style="margin: 0 0 5px 0; color: #666;">${escapeHtml(template.description)}</p>` : ''}
+                <p style="margin: 0; font-size: 12px; color: #999;">Criado em: ${template.created_at} | ${template.item_count} itens</p>
+              </div>
+              <div>
+                <button onclick="applyTemplate(${template.id})" style="padding: 6px 12px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">Aplicar</button>
+                <button onclick="openEditTemplateModal(${template.id})" style="padding: 6px 12px; background-color: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;">Editar</button>
+                <button onclick="deleteTemplate(${template.id})" style="padding: 6px 12px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Deletar</button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      listDiv.innerHTML = html;
+    })
+    .catch(error => {
+      console.error('Erro ao carregar templates:', error);
+      alert('Erro ao carregar templates.');
+    });
+}
+
+function loadTemplateForEdit(templateId) {
+  fetch(`{% url "finance:budget_template_edit" 0 %}`.replace('0', templateId))
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('editTemplateId').value = data.id;
+      document.getElementById('editTemplateName').value = data.name;
+      document.getElementById('editTemplateDescription').value = data.description || '';
+      
+      // Limpar todos os valores primeiro
+      document.querySelectorAll('.edit-template-budget-input').forEach(input => {
+        input.value = '';
+      });
+      document.querySelectorAll('.edit-template-comment-input').forEach(textarea => {
+        textarea.value = '';
+      });
+      
+      // Preencher os valores do template
+      if (data.items && data.items.length > 0) {
+        data.items.forEach(item => {
+          const input = document.querySelector(`.edit-template-budget-input[data-subcategory-id="${item.subcategory_id}"]`);
+          if (input) {
+            input.value = item.amount;
+          }
+          const commentInput = document.querySelector(`.edit-template-comment-input[data-subcategory-id="${item.subcategory_id}"]`);
+          if (commentInput) {
+            commentInput.value = item.comment || '';
+          }
+        });
+      }
+      
+      // Atualizar totais após carregar os valores
+      updateEditTemplateTotals();
+    })
+    .catch(error => {
+      console.error('Erro ao carregar template:', error);
+      alert('Erro ao carregar template.');
+    });
+}
+
+function applyTemplate(templateId) {
+  const replaceMode = confirm('Deseja substituir TODOS os valores existentes?\n\nOK = Substituir todos\nCancelar = Preencher apenas campos vazios');
+  const mode = replaceMode ? 'all' : 'empty';
+  
+  fetch('{% url "finance:budget_template_apply" %}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      template_id: templateId,
+      year: currentYear,
+      month: currentMonth,
+      replace_mode: mode
+    })
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert(data.message);
+        location.reload();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao aplicar template:', error);
+      alert('Erro ao aplicar template.');
+    });
+}
+
+function createTemplate(event) {
+  event.preventDefault();
+  const name = document.getElementById('templateName').value.trim();
+  const description = document.getElementById('templateDescription').value.trim();
+  
+  // Coletar valores dos inputs do modal
+  const items = [];
+  document.querySelectorAll('.template-budget-input').forEach(input => {
+    const subcategoryId = input.getAttribute('data-subcategory-id');
+    const value = input.value.trim();
+    if (value && parseFloat(value) > 0) {
+      const commentInput = document.querySelector(`.template-comment-input[data-subcategory-id="${subcategoryId}"]`);
+      const comment = commentInput ? commentInput.value.trim() : '';
+      items.push({
+        subcategory_id: parseInt(subcategoryId),
+        amount: value,
+        comment: comment
+      });
+    }
+  });
+  
+  fetch('{% url "finance:budget_template_create" %}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      name: name,
+      description: description,
+      items: items
+    })
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Template criado com sucesso!');
+        document.getElementById('createTemplateForm').reset();
+        loadTemplates();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao criar template:', error);
+      alert('Erro ao criar template.');
+    });
+}
+
+function updateTemplate(event) {
+  event.preventDefault();
+  const templateId = document.getElementById('editTemplateId').value;
+  const name = document.getElementById('editTemplateName').value.trim();
+  const description = document.getElementById('editTemplateDescription').value.trim();
+  
+  // Coletar valores dos inputs do modal de edição
+  const items = [];
+  document.querySelectorAll('.edit-template-budget-input').forEach(input => {
+    const subcategoryId = input.getAttribute('data-subcategory-id');
+    const value = input.value.trim();
+    if (value && parseFloat(value) > 0) {
+      items.push({
+        subcategory_id: parseInt(subcategoryId),
+        amount: value
+      });
+    }
+  });
+  
+  fetch(`{% url "finance:budget_template_edit" 0 %}`.replace('0', templateId), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      name: name,
+      description: description,
+      items: items
+    })
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Template atualizado com sucesso!');
+        closeEditTemplateModal();
+        loadTemplates();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao atualizar template:', error);
+      alert('Erro ao atualizar template.');
+    });
+}
+
+function saveCurrentAsTemplate(event) {
+  event.preventDefault();
+  const name = document.getElementById('saveTemplateName').value.trim();
+  const description = document.getElementById('saveTemplateDescription').value.trim();
+  
+  fetch('{% url "finance:budget_template_save_current" %}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      name: name,
+      description: description,
+      year: currentYear,
+      month: currentMonth
+    })
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Template salvo com sucesso!');
+        closeSaveTemplateModal();
+        if (document.getElementById('templatesModal').style.display === 'block') {
+          loadTemplates();
+        }
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao salvar template:', error);
+      alert('Erro ao salvar template.');
+    });
+}
+
+function deleteTemplate(templateId) {
+  if (!confirm('Tem certeza que deseja deletar este template?')) {
+    return;
+  }
+  
+  fetch(`{% url "finance:budget_template_delete" 0 %}`.replace('0', templateId), {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken')
+    }
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert('Template deletado com sucesso!');
+        loadTemplates();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao deletar template:', error);
+      alert('Erro ao deletar template.');
+    });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Função para calcular e atualizar totais do template de criação
+function updateCreateTemplateTotals() {
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  
+  document.querySelectorAll('.template-budget-input').forEach(input => {
+    const value = parseFloat(input.value) || 0;
+    const isIncome = input.getAttribute('data-category-is-income') === 'true';
+    
+    if (isIncome) {
+      totalIncome += value;
+    } else {
+      totalExpenses += value;
+    }
+  });
+  
+  const balance = totalIncome - totalExpenses;
+  
+  document.getElementById('createTemplateTotalIncome').textContent = 'R$ ' + totalIncome.toFixed(2);
+  document.getElementById('createTemplateTotalExpenses').textContent = 'R$ ' + totalExpenses.toFixed(2);
+  
+  const balanceElement = document.getElementById('createTemplateBalance');
+  balanceElement.textContent = 'R$ ' + balance.toFixed(2);
+  balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
+}
+
+// Função para calcular e atualizar totais do template de edição
+function updateEditTemplateTotals() {
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  
+  document.querySelectorAll('.edit-template-budget-input').forEach(input => {
+    const value = parseFloat(input.value) || 0;
+    const isIncome = input.getAttribute('data-category-is-income') === 'true';
+    
+    if (isIncome) {
+      totalIncome += value;
+    } else {
+      totalExpenses += value;
+    }
+  });
+  
+  const balance = totalIncome - totalExpenses;
+  
+  document.getElementById('editTemplateTotalIncome').textContent = 'R$ ' + totalIncome.toFixed(2);
+  document.getElementById('editTemplateTotalExpenses').textContent = 'R$ ' + totalExpenses.toFixed(2);
+  
+  const balanceElement = document.getElementById('editTemplateBalance');
+  balanceElement.textContent = 'R$ ' + balance.toFixed(2);
+  balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
+}
+
+// Fechar modais ao clicar fora
+window.onclick = function(event) {
+  const templatesModal = document.getElementById('templatesModal');
+  const saveTemplateModal = document.getElementById('saveTemplateModal');
+  const editTemplateModal = document.getElementById('editTemplateModal');
+  
+  if (event.target === templatesModal) {
+    closeTemplatesModal();
+  }
+  if (event.target === saveTemplateModal) {
+    closeSaveTemplateModal();
+  }
+  if (event.target === editTemplateModal) {
+    closeEditTemplateModal();
+  }
 }
 </script>
 {% endif %}
