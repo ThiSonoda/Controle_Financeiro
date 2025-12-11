@@ -190,8 +190,8 @@
     </div>
     <div class="metric">
       <span class="metric-label">Despesas Planejadas</span>
-      <span class="metric-value {% if expense_planned_percent <= 100 %}positive{% else %}negative{% endif %}">
-        R$ {{ expense_budget|floatformat:2 }} <span style="font-size: 14px; font-weight: 500;">({{ expense_planned_percent|floatformat:1 }}%)</span>
+      <span class="metric-value negative">
+        - R$ {{ expense_budget|floatformat:2 }} <span style="font-size: 14px; font-weight: 500;">({{ expense_planned_percent|floatformat:1 }}%)</span>
       </span>
     </div>
     <div class="metric">
@@ -231,6 +231,24 @@
 <div class="dashboard-card" style="margin-bottom: 30px;">
   <h2>📊 Gasto vs Orçado por Subcategoria</h2>
   <canvas id="subcategoriesChart" style="max-height: 500px;"></canvas>
+  <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0; display: flex; gap: 20px; flex-wrap: wrap; align-items: center; font-size: 12px; color: #666;">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 30px; height: 2px; border-top: 2px dashed rgba(46, 125, 50, 0.8);"></div>
+      <span>Linha tracejada verde = Valor Orçado (referência)</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 20px; height: 12px; background-color: rgba(33, 150, 243, 0.7); border: 2px solid rgba(33, 150, 243, 1);"></div>
+      <span>Azul = &lt; 85% do orçado</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 20px; height: 12px; background-color: rgba(255, 152, 0, 0.7); border: 2px solid rgba(255, 152, 0, 1);"></div>
+      <span>Laranja = 85% - 100% do orçado</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 20px; height: 12px; background-color: rgba(198, 40, 40, 0.7); border: 2px solid rgba(198, 40, 40, 1);"></div>
+      <span>Vermelho = &gt; 100% do orçado ou sem orçamento</span>
+    </div>
+  </div>
 </div>
 
 <!-- Últimas Transações -->
@@ -269,27 +287,129 @@
     const spentData = chartData.map(item => item.spent);
     const budgetData = chartData.map(item => item.budget);
     
+    // Calcular porcentagens e cores para as barras de gasto
+    const percentages = [];
+    const spentColors = [];
+    const spentBorderColors = [];
+    
+    spentData.forEach((spent, index) => {
+      const budget = budgetData[index];
+      let percentage = 0;
+      
+      // Se não há orçamento mas há gasto, usar vermelho
+      if (budget === 0 && spent > 0) {
+        percentage = 101; // Valor maior que 100 para forçar vermelho
+      } else if (budget > 0) {
+        percentage = (spent / budget) * 100;
+      }
+      
+      percentages.push(percentage);
+      
+      // Definir cores baseado na porcentagem
+      if (budget === 0 && spent > 0) {
+        // Vermelho quando não há orçamento mas há gasto
+        spentColors.push('rgba(198, 40, 40, 0.7)'); // Vermelho com transparência
+        spentBorderColors.push('rgba(198, 40, 40, 1)'); // Vermelho sólido
+      } else if (percentage < 85) {
+        // Azul para < 85%
+        spentColors.push('rgba(33, 150, 243, 0.7)'); // Azul com transparência
+        spentBorderColors.push('rgba(33, 150, 243, 1)'); // Azul sólido
+      } else if (percentage <= 100) {
+        // Laranja para 85% - 100%
+        spentColors.push('rgba(255, 152, 0, 0.7)'); // Laranja com transparência
+        spentBorderColors.push('rgba(255, 152, 0, 1)'); // Laranja sólido
+      } else {
+        // Vermelho para > 100%
+        spentColors.push('rgba(198, 40, 40, 0.7)'); // Vermelho com transparência
+        spentBorderColors.push('rgba(198, 40, 40, 1)'); // Vermelho sólido
+      }
+    });
+    
+    // Plugin customizado para adicionar porcentagens no topo das barras de gasto
+    const percentageLabelPlugin = {
+      id: 'percentageLabel',
+      afterDatasetsDraw: function(chart) {
+        const ctx = chart.ctx;
+        const meta = chart.getDatasetMeta(0); // Dataset de "Gasto"
+        const yScale = chart.scales.y;
+        
+        ctx.save();
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        
+        meta.data.forEach((bar, index) => {
+          const percentage = percentages[index];
+          const budget = budgetData[index];
+          const spent = spentData[index];
+          
+          // Desenhar linha de referência horizontal para o valor orçado
+          if (budget > 0) {
+            const budgetY = yScale.getPixelForValue(budget);
+            const barLeft = bar.x - bar.width / 2;
+            const barRight = bar.x + bar.width / 2;
+            
+            // Linha tracejada verde
+            ctx.strokeStyle = 'rgba(46, 125, 50, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(barLeft, budgetY);
+            ctx.lineTo(barRight, budgetY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          
+          // Adicionar porcentagem no topo da barra de gasto
+          if (spent > 0) {
+            const x = bar.x;
+            const y = bar.y;
+            let text;
+            
+            // Se não há orçamento, mostrar "N/A"
+            if (budget === 0) {
+              text = 'N/A';
+            } else {
+              text = percentage.toFixed(1) + '%';
+            }
+            
+            // Cor do texto baseada na porcentagem ou se não há orçamento
+            ctx.font = 'bold 11px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            if (budget === 0 && spent > 0) {
+              ctx.fillStyle = 'rgba(198, 40, 40, 1)'; // Vermelho para sem orçamento
+            } else if (percentage < 85) {
+              ctx.fillStyle = 'rgba(33, 150, 243, 1)'; // Azul
+            } else if (percentage <= 100) {
+              ctx.fillStyle = 'rgba(255, 152, 0, 1)'; // Laranja
+            } else {
+              ctx.fillStyle = 'rgba(198, 40, 40, 1)'; // Vermelho
+            }
+            
+            ctx.fillText(text, x, y - 5);
+          }
+        });
+        
+        ctx.restore();
+      }
+    };
+    
     // Configuração do gráfico
     const ctx = document.getElementById('subcategoriesChart');
     if (ctx) {
       new Chart(ctx.getContext('2d'), {
         type: 'bar',
+        plugins: [percentageLabelPlugin],
         data: {
           labels: labels,
           datasets: [
             {
               label: 'Gasto',
               data: spentData,
-              backgroundColor: 'rgba(198, 40, 40, 0.7)',
-              borderColor: 'rgba(198, 40, 40, 1)',
-              borderWidth: 1
-            },
-            {
-              label: 'Orçado',
-              data: budgetData,
-              backgroundColor: 'rgba(46, 125, 50, 0.7)',
-              borderColor: 'rgba(46, 125, 50, 1)',
-              borderWidth: 1
+              backgroundColor: spentColors,
+              borderColor: spentBorderColors,
+              borderWidth: 2
             }
           ]
         },
@@ -322,8 +442,36 @@
             },
             tooltip: {
               callbacks: {
+                title: function(context) {
+                  return context[0].label;
+                },
                 label: function(context) {
-                  return context.dataset.label + ': R$ ' + context.parsed.y.toFixed(2);
+                  const index = context.dataIndex;
+                  const spent = spentData[index];
+                  const budget = budgetData[index];
+                  const percentage = percentages[index];
+                  
+                  const lines = [];
+                  lines.push('Gasto: R$ ' + spent.toFixed(2));
+                  
+                  if (budget > 0) {
+                    lines.push('Orçado: R$ ' + budget.toFixed(2));
+                    const difference = spent - budget;
+                    if (difference > 0) {
+                      lines.push('Diferença: +R$ ' + difference.toFixed(2) + ' (acima do orçado)');
+                    } else if (difference < 0) {
+                      lines.push('Diferença: R$ ' + Math.abs(difference).toFixed(2) + ' (abaixo do orçado)');
+                    } else {
+                      lines.push('Diferença: R$ 0,00 (exatamente no orçado)');
+                    }
+                    lines.push('Porcentagem: ' + percentage.toFixed(1) + '%');
+                  } else {
+                    lines.push('Orçado: R$ 0,00 (sem orçamento definido)');
+                    lines.push('Diferença: R$ ' + spent.toFixed(2) + ' (sem referência)');
+                    lines.push('Porcentagem: N/A');
+                  }
+                  
+                  return lines;
                 }
               }
             }

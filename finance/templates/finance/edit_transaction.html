@@ -63,6 +63,9 @@
 <div class="edit-transaction-layout">
   <form method="post" action="">
     {% csrf_token %}
+    {% if request.GET.next %}
+      <input type="hidden" name="next" value="{{ request.GET.next }}">
+    {% endif %}
     
     <div class="left-column">
       <div style="display: flex; gap: 16px;">
@@ -148,7 +151,17 @@
 
       <div style="margin-top: 20px;">
         <button type="submit">Atualizar</button>
-        <a href="{% url 'finance:transactions' %}" style="margin-left: 10px;">Cancelar</a>
+        {% if request.GET.next %}
+          {% if request.GET.next == 'transactions' %}
+            <a href="{% url 'finance:transactions' %}" style="margin-left: 10px;">Cancelar</a>
+          {% elif request.GET.next == 'all_transactions' %}
+            <a href="{% url 'finance:all_transactions' %}" style="margin-left: 10px;">Cancelar</a>
+          {% else %}
+            <a href="{{ request.GET.next }}" style="margin-left: 10px;">Cancelar</a>
+          {% endif %}
+        {% else %}
+          <a href="{% url 'finance:transactions' %}" style="margin-left: 10px;">Cancelar</a>
+        {% endif %}
       </div>
     </div>
   </form>

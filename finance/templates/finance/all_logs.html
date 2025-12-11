@@ -46,9 +46,34 @@
     </tbody>
   </table>
   
-  <p style="margin-top: 15px; color: #666;">
-    Total de logs: {{ logs|length }}
-  </p>
+  <!-- Controles de Paginação -->
+  <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <p style="color: #666; margin: 0;">
+      Mostrando {{ logs.start_index }} a {{ logs.end_index }} de {{ logs.paginator.count }} logs
+    </p>
+    
+    <div style="display: flex; gap: 10px; align-items: center;">
+      {% if logs.has_previous %}
+        <a href="?page=1" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">« Primeira</a>
+        <a href="?page={{ logs.previous_page_number }}" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">‹ Anterior</a>
+      {% else %}
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">« Primeira</span>
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">‹ Anterior</span>
+      {% endif %}
+      
+      <span style="padding: 6px 12px; color: #333; font-weight: bold;">
+        Página {{ logs.number }} de {{ logs.paginator.num_pages }}
+      </span>
+      
+      {% if logs.has_next %}
+        <a href="?page={{ logs.next_page_number }}" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">Próxima ›</a>
+        <a href="?page={{ logs.paginator.num_pages }}" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">Última »</a>
+      {% else %}
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">Próxima ›</span>
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">Última »</span>
+      {% endif %}
+    </div>
+  </div>
 {% else %}
   <p>Nenhum log encontrado.</p>
 {% endif %}

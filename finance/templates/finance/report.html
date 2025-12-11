@@ -111,7 +111,7 @@
           <th>Comentário</th>
           {% endif %}
           <th>Recebido (R$)</th>
-          <th>Diferença (Recebido - Orçado)</th>
+          <th>Diferença</th>
           <th>% Utilizado</th>
         </tr>
       </thead>
@@ -138,7 +138,7 @@
                           data-subcategory-id="{{ subcat.subcategory_id }}"
                           rows="2" 
                           placeholder="Comentário opcional..."
-                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;">{{ subcat.budget_comment|default:'' }}</textarea>
+                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 16px;">{{ subcat.budget_comment|default:'' }}</textarea>
               </td>
               {% endif %}
               <td>R$ {{ subcat.spent|floatformat:2 }}</td>
@@ -178,21 +178,21 @@
   <!-- Tabela de Despesas -->
   {% if expense_categories %}
     <h3 style="margin-top: 20px; margin-bottom: 10px;">Despesas</h3>
-    <table border="1" cellspacing="0" cellpadding="4">
-      <thead>
-        <tr>
-          <th>Categoria</th>
+  <table border="1" cellspacing="0" cellpadding="4">
+    <thead>
+      <tr>
+        <th>Categoria</th>
           <th>Subcategorias</th>
-          <th>Orçado (R$)</th>
+        <th>Orçado (R$)</th>
           {% if is_edit_mode %}
           <th>Comentário</th>
           {% endif %}
-          <th>Gasto (R$)</th>
-          <th>Diferença (Orçado - Gasto)</th>
-          <th>% Utilizado</th>
-        </tr>
-      </thead>
-      <tbody>
+        <th>Gasto (R$)</th>
+        <th>Diferença</th>
+        <th>% Utilizado</th>
+      </tr>
+    </thead>
+    <tbody>
         {% for cat in expense_categories %}
           {% for subcat in cat.subcategories %}
             <tr {% if subcat.diff < 0 %}style="background-color:#ffd0d0"{% endif %}>
@@ -215,19 +215,19 @@
                           data-subcategory-id="{{ subcat.subcategory_id }}"
                           rows="2" 
                           placeholder="Comentário opcional..."
-                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;">{{ subcat.budget_comment|default:'' }}</textarea>
+                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 16px;">{{ subcat.budget_comment|default:'' }}</textarea>
               </td>
               {% endif %}
               <td>R$ {{ subcat.spent|floatformat:2 }}</td>
               <td>R$ {{ subcat.diff|floatformat:2 }}</td>
-              <td>
+          <td>
                 {% if subcat.percent %}
                   {{ subcat.percent|floatformat:1 }}%
-                {% else %}
-                  -
-                {% endif %}
-              </td>
-            </tr>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
           {% endfor %}
           {% if cat.subcategories %}
             <tr style="background-color: #f0f0f0; font-weight: bold;">
@@ -247,10 +247,10 @@
               </td>
             </tr>
           {% endif %}
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
           <th colspan="2">Total Despesas</th>
           <th>R$ {{ expense_total_budget|floatformat:2 }}</th>
           {% if is_edit_mode %}
@@ -258,16 +258,16 @@
           {% endif %}
           <th>R$ {{ expense_total_spent|floatformat:2 }}</th>
           <th>R$ {{ expense_total_diff|floatformat:2 }}</th>
-          <th>
+        <th>
             {% if expense_total_percent %}
               {{ expense_total_percent|floatformat:1 }}%
-            {% else %}
-              -
-            {% endif %}
-          </th>
-        </tr>
-      </tfoot>
-    </table>
+          {% else %}
+            -
+          {% endif %}
+        </th>
+      </tr>
+    </tfoot>
+  </table>
   {% endif %}
 {% else %}
   <p>Não há dados para este mês.</p>
@@ -294,7 +294,7 @@
         </div>
         <div style="margin-bottom: 10px;">
           <label for="templateDescription">Descrição (opcional):</label>
-          <textarea id="templateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+          <textarea id="templateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box; font-size: 16px;"></textarea>
         </div>
         <div style="margin-bottom: 15px; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
           <h4 style="margin-top: 0;">Valores de Orçamento por Subcategoria:</h4>
@@ -333,7 +333,7 @@
                                 data-subcategory-id="{{ subcat.id }}"
                                 rows="2" 
                                 placeholder="Comentário opcional..."
-                                style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;"></textarea>
+                                style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 16px;"></textarea>
                     </td>
                   </tr>
                 {% endfor %}
@@ -379,7 +379,7 @@
       </div>
       <div style="margin-bottom: 10px;">
         <label for="saveTemplateDescription">Descrição (opcional):</label>
-        <textarea id="saveTemplateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+        <textarea id="saveTemplateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box; font-size: 16px;"></textarea>
       </div>
       <div style="text-align: right;">
         <button type="button" onclick="closeSaveTemplateModal()" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Cancelar</button>
@@ -405,7 +405,7 @@
       </div>
       <div style="margin-bottom: 10px;">
         <label for="editTemplateDescription">Descrição (opcional):</label>
-        <textarea id="editTemplateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+        <textarea id="editTemplateDescription" rows="3" style="width: 100%; padding: 8px; box-sizing: border-box; font-size: 16px;"></textarea>
       </div>
       <div style="margin-bottom: 15px; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
         <h4 style="margin-top: 0;">Valores de Orçamento por Subcategoria:</h4>
@@ -444,7 +444,7 @@
                               data-subcategory-id="{{ subcat.id }}"
                               rows="2" 
                               placeholder="Comentário opcional..."
-                              style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px;"></textarea>
+                              style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 12px; font-size: 16px;"></textarea>
                   </td>
                 </tr>
               {% endfor %}

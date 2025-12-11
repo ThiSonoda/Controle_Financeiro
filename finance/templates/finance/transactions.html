@@ -45,10 +45,7 @@
     border-radius: 4px;
     font-size: 16px;
   }
-   /* Altura específica para o campo de subcategoria */
-   #id_subcategory {
-    height: 35px;
-  }
+   /* Altura específica para o campo de subcategoria (removido - agora é input de busca) */
     /* Altura específica para o campo de Tipo */
     #id_type {
     height: 40px;
@@ -105,14 +102,16 @@
           <input type="number" id="id_amount" name="amount" step="0.01" min="0" required>
         </div>
 
-        <div style="flex: 1;">
-          <label for="id_subcategory">Subcategoria:</label>
-          <select id="id_subcategory" name="subcategory" required>
-            <option value="">-- selecione --</option>
-            {% for subcat in subcategories %}
-              <option value="{{ subcat.id }}">{{ subcat.name }} - {{ subcat.category.name }}{% if subcat.category.is_income %} (receita){% endif %}</option>
-            {% endfor %}
-          </select>
+        <div style="flex: 1; position: relative;">
+          <label for="id_subcategory_search">Subcategoria:</label>
+          <input type="text" 
+                 id="id_subcategory_search" 
+                 autocomplete="off"
+                 placeholder="Digite para buscar..."
+                 style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px;">
+          <input type="hidden" id="id_subcategory" name="subcategory" required>
+          <div id="subcategory_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; border-radius: 0 0 4px 4px; max-height: 300px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          </div>
         </div>
       </div>
 
@@ -140,10 +139,10 @@
 
       <div id="owner_tag_field" style="display: none;">
         <label for="id_owner_tag">Tag (obrigatório para cartão Bradesco):</label>
-        <select id="id_owner_tag" name="owner_tag" required>
+        <select id="id_owner_tag" name="owner_tag" onchange="applyOwnerTagFilter()">
           <option value="">-- selecione --</option>
-          <option value="Thi">Thiago (Thi)</option>
-          <option value="Tha">Thaís (Tha)</option>
+          <option value="Thi" {% if owner_tag_filter == 'Thi' %}selected{% endif %}>Thiago (Thi)</option>
+          <option value="Tha" {% if owner_tag_filter == 'Tha' %}selected{% endif %}>Thaís (Tha)</option>
         </select>
       </div>
 
@@ -188,6 +187,69 @@
   </div>
 
   <aside class="right-column">
+    <!-- Filtro de Período -->
+    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
+      <div style="display: flex; gap: 15px; align-items: flex-end;">
+        <div>
+          <label for="invoice_year" style="display: block; font-weight: 600; margin-bottom: 5px;">Ano:</label>
+          <input type="number" id="invoice_year" name="invoice_year" 
+                 value="{{ selected_year }}" 
+                 min="2020" 
+                 max="2100"
+                 style="width: 80px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+        </div>
+        <div>
+          <label for="invoice_month" style="display: block; font-weight: 600; margin-bottom: 5px;">Mês:</label>
+          <input type="number" id="invoice_month" name="invoice_month" 
+                 value="{{ selected_month }}" 
+                 min="1" 
+                 max="12"
+                 style="width: 70px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+        </div>
+        <div>
+          <button type="button" onclick="updateInvoiceMonth()" style="padding: 6px 12px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Atualizar</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function updateInvoiceMonth() {
+        const yearInput = document.getElementById('invoice_year');
+        const monthInput = document.getElementById('invoice_month');
+        const year = yearInput.value;
+        const month = monthInput.value;
+        
+        if (year && month) {
+          // Validar valores
+          const yearNum = parseInt(year);
+          const monthNum = parseInt(month);
+          
+          if (yearNum >= 2020 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12) {
+            window.location.href = '{% url "finance:transactions" %}?year=' + year + '&month=' + month;
+          } else {
+            alert('Por favor, insira um ano entre 2020 e 2100 e um mês entre 1 e 12.');
+          }
+        } else {
+          alert('Por favor, preencha o ano e o mês.');
+        }
+      }
+      
+      // Permitir atualizar ao pressionar Enter nos campos
+      document.getElementById('invoice_year').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          updateInvoiceMonth();
+        }
+      });
+      
+      document.getElementById('invoice_month').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          updateInvoiceMonth();
+        }
+      });
+    </script>
+
     <h2 style="margin-top: 0;">Saldo das Contas</h2>
 
     <section style="margin-bottom: 16px;">
@@ -206,13 +268,6 @@
     </section>
 
     <h2 style="margin-top: 0;">Faturas dos Cartões de Crédito</h2>
-    <div style="margin-bottom: 20px;">
-      <label for="invoice_month" style="display: block; margin-bottom: 5px;">Mês/Ano:</label>
-      <input type="month" id="invoice_month" name="invoice_month" 
-             value="{{ selected_year }}-{% if selected_month < 10 %}0{% endif %}{{ selected_month }}"
-             onchange="updateInvoiceMonth()" style="width: 200px;">
-      <button type="button" onclick="updateInvoiceMonth()" style="margin-left: 10px;">Atualizar</button>
-    </div>
 
     {% if credit_card_invoices %}
       <table border="1" cellspacing="0" cellpadding="8" style="width: 100%; margin-bottom: 20px;">
@@ -256,22 +311,11 @@
     {% else %}
       <p style="color: #666;">Nenhum cartão cadastrado ou nenhuma fatura no período selecionado.</p>
     {% endif %}
-
-    <script>
-      function updateInvoiceMonth() {
-        const monthInput = document.getElementById('invoice_month');
-        const value = monthInput.value;
-        if (value) {
-          const [year, month] = value.split('-');
-          window.location.href = '{% url "finance:transactions" %}?year=' + year + '&month=' + month;
-        }
-      }
-    </script>
   </aside>
 
 </div>
 
-<h2>Últimos lançamentos</h2>
+<h2>Últimos lançamentos - {{ selected_month|stringformat:"02d" }}/{{ selected_year }}</h2>
 
 <div style="margin-bottom: 15px;">
   <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
@@ -293,6 +337,17 @@
       }
       window.location.href = url.toString();
     }
+    
+    function applyOwnerTagFilter() {
+      const ownerTagSelect = document.getElementById('id_owner_tag');
+      const url = new URL(window.location.href);
+      if (ownerTagSelect && ownerTagSelect.value) {
+        url.searchParams.set('owner_tag', ownerTagSelect.value);
+      } else {
+        url.searchParams.delete('owner_tag');
+      }
+      window.location.href = url.toString();
+    }
   </script>
 </div>
 
@@ -306,6 +361,9 @@
         <th style="min-width: 100px;">Valor</th>
         <th>Categoria</th>
         <th>Cartão</th>
+        {% if is_bradesco_selected %}
+        <th>Tag</th>
+        {% endif %}
         <th>Descrição</th>
         <th>Ações</th>
       </tr>
@@ -344,9 +402,24 @@
           </td>
 
           <td>{{ t.credit_card.name|default:"-" }}</td>
+          {% if is_bradesco_selected %}
+          <td>
+            {% if t.owner_tag %}
+              {% if t.owner_tag == "Thi" %}
+                Thiago (Thi)
+              {% elif t.owner_tag == "Tha" %}
+                Thaís (Tha)
+              {% else %}
+                {{ t.owner_tag }}
+              {% endif %}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          {% endif %}
           <td>{{ t.description }}</td>
           <td>
-            <a href="{% url 'finance:edit_transaction' t.id %}" style="margin-right: 8px;">Editar</a>
+            <a href="{% url 'finance:edit_transaction' t.id %}?next=transactions" style="margin-right: 8px;">Editar</a>
             <form method="post" action="{% url 'finance:delete_transaction' t.id %}" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja deletar este lançamento?');">
               {% csrf_token %}
               <button type="submit" class="logout-link" style="color: #c62828; padding: 0; margin: 0;">Deletar</button>
@@ -361,7 +434,7 @@
         <td style="font-weight: bold; min-width: 100px;">
           R$ {{ total_signed_amount|floatformat:2 }}
         </td>
-        <td colspan="3"></td>
+        <td colspan="{% if is_bradesco_selected %}4{% else %}3{% endif %}"></td>
         <td></td>
       </tr>
     </tfoot>
@@ -376,6 +449,194 @@
     const box = document.getElementById('installment_fields');
     box.style.display = chk.checked ? 'block' : 'none';
   }
+</script>
+
+<script>
+  // Autocomplete para Subcategoria
+  (function() {
+    // Dados das subcategorias
+    const subcategories = [
+      {% for subcat in subcategories %}
+      {
+        id: {{ subcat.id }},
+        name: "{{ subcat.name|escapejs }}",
+        category: "{{ subcat.category.name|escapejs }}",
+        isIncome: {{ subcat.category.is_income|yesno:"true,false" }},
+        displayText: "{{ subcat.name|escapejs }} - {{ subcat.category.name|escapejs }}{% if subcat.category.is_income %} (receita){% endif %}"
+      }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+
+    const searchInput = document.getElementById('id_subcategory_search');
+    const hiddenInput = document.getElementById('id_subcategory');
+    const dropdown = document.getElementById('subcategory_dropdown');
+    const typeSelect = document.getElementById('id_type');
+    let selectedIndex = -1;
+    let filteredSubcategories = [];
+
+    function getAvailableSubcategories() {
+      // Filtrar por tipo de transação se selecionado
+      if (typeSelect && typeSelect.value) {
+        const isIncome = typeSelect.value === 'IN';
+        return subcategories.filter(subcat => subcat.isIncome === isIncome);
+      }
+      return subcategories;
+    }
+
+    function filterSubcategories(query) {
+      const available = getAvailableSubcategories();
+      
+      if (!query || query.trim() === '') {
+        return available;
+      }
+      const lowerQuery = query.toLowerCase();
+      return available.filter(subcat => 
+        subcat.name.toLowerCase().includes(lowerQuery) ||
+        subcat.category.toLowerCase().includes(lowerQuery) ||
+        subcat.displayText.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    function renderDropdown(subcategories) {
+      filteredSubcategories = subcategories;
+      selectedIndex = -1;
+      
+      if (subcategories.length === 0) {
+        dropdown.innerHTML = '<div style="padding: 10px; color: #666;">Nenhuma subcategoria encontrada</div>';
+        dropdown.style.display = 'block';
+        return;
+      }
+
+      dropdown.innerHTML = subcategories.map((subcat, index) => 
+        `<div class="subcategory-option" data-index="${index}" data-id="${subcat.id}" style="padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #eee;" onmouseover="this.style.backgroundColor='#f5f5f5'" onmouseout="this.style.backgroundColor='white'">
+          <strong>${subcat.name}</strong> - ${subcat.category}${subcat.isIncome ? ' <span style="color: #2e7d32;">(receita)</span>' : ''}
+        </div>`
+      ).join('');
+
+      // Adicionar event listeners
+      dropdown.querySelectorAll('.subcategory-option').forEach(option => {
+        option.addEventListener('click', function() {
+          const index = parseInt(this.getAttribute('data-index'));
+          selectSubcategory(filteredSubcategories[index]);
+        });
+      });
+
+      dropdown.style.display = 'block';
+    }
+
+    function selectSubcategory(subcat) {
+      hiddenInput.value = subcat.id;
+      searchInput.value = subcat.displayText;
+      dropdown.style.display = 'none';
+      selectedIndex = -1;
+      
+      // Validar o campo hidden
+      hiddenInput.setCustomValidity('');
+    }
+
+    function highlightOption(index) {
+      const options = dropdown.querySelectorAll('.subcategory-option');
+      options.forEach((opt, i) => {
+        if (i === index) {
+          opt.style.backgroundColor = '#e3f2fd';
+          opt.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } else {
+          opt.style.backgroundColor = 'white';
+        }
+      });
+    }
+
+    // Event listeners
+    searchInput.addEventListener('input', function() {
+      const query = this.value;
+      const filtered = filterSubcategories(query);
+      renderDropdown(filtered);
+      
+      // Se o texto não corresponde a nenhuma subcategoria selecionada, limpar o hidden
+      if (hiddenInput.value) {
+        const selected = subcategories.find(s => s.id == hiddenInput.value);
+        if (!selected || selected.displayText !== query) {
+          hiddenInput.value = '';
+          searchInput.setCustomValidity('Por favor, selecione uma subcategoria válida');
+        } else {
+          searchInput.setCustomValidity('');
+        }
+      }
+    });
+
+    searchInput.addEventListener('focus', function() {
+      if (this.value) {
+        const filtered = filterSubcategories(this.value);
+        renderDropdown(filtered);
+      } else {
+        const available = getAvailableSubcategories();
+        renderDropdown(available);
+      }
+    });
+
+    // Limpar seleção quando o tipo de transação mudar
+    if (typeSelect) {
+      typeSelect.addEventListener('change', function() {
+        // Limpar seleção de subcategoria quando mudar o tipo
+        hiddenInput.value = '';
+        searchInput.value = '';
+        dropdown.style.display = 'none';
+      });
+    }
+
+    searchInput.addEventListener('keydown', function(e) {
+      if (!dropdown.style.display || dropdown.style.display === 'none') {
+        return;
+      }
+
+      const options = dropdown.querySelectorAll('.subcategory-option');
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, options.length - 1);
+        highlightOption(selectedIndex);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        if (selectedIndex >= 0) {
+          highlightOption(selectedIndex);
+        } else {
+          options.forEach(opt => opt.style.backgroundColor = 'white');
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0 && filteredSubcategories[selectedIndex]) {
+          selectSubcategory(filteredSubcategories[selectedIndex]);
+        } else if (filteredSubcategories.length === 1) {
+          selectSubcategory(filteredSubcategories[0]);
+        }
+      } else if (e.key === 'Escape') {
+        dropdown.style.display = 'none';
+        selectedIndex = -1;
+      }
+    });
+
+    // Fechar dropdown ao clicar fora
+    document.addEventListener('click', function(e) {
+      if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+
+    // Validação do formulário
+    const form = searchInput.closest('form');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        if (!hiddenInput.value) {
+          e.preventDefault();
+          searchInput.setCustomValidity('Por favor, selecione uma subcategoria');
+          searchInput.reportValidity();
+          return false;
+        }
+        searchInput.setCustomValidity('');
+      });
+    }
+  })();
 </script>
 
 <script>
@@ -415,8 +676,15 @@
         const url = new URL(window.location.href);
         if (id && id.trim() !== '') {
           url.searchParams.set('payment_method', id);
+          // Se não for Bradesco, remover filtro de tag
+          const isBradesco = cardName && cardName.toLowerCase().includes('bradesco');
+          if (!isBradesco) {
+            url.searchParams.delete('owner_tag');
+          }
         } else {
           url.searchParams.set('payment_method', 'debit');
+          // Se for débito, remover filtro de tag
+          url.searchParams.delete('owner_tag');
         }
         window.location.href = url.toString();
         return; // evita execução extra após intenção de recarregar
@@ -428,12 +696,11 @@
       if (ownerTagField && ownerTagSelect) {
         // Verificar se o cartão é Bradesco (comparação case-insensitive)
         const isBradesco = cardName && cardName.toLowerCase().includes('bradesco');
-        if (isBradesco) {
+        if (isBradesco && id && id.trim() !== '') {
           ownerTagField.style.display = 'block';
-          ownerTagSelect.required = true;
+          // Não tornar obrigatório aqui - será validado apenas no submit do formulário
         } else {
           ownerTagField.style.display = 'none';
-          ownerTagSelect.required = false;
           ownerTagSelect.value = ''; // Limpar valor quando não é Bradesco
         }
       }
@@ -442,15 +709,118 @@
     buttons.forEach(btn => btn.addEventListener('click', function(){ setActive(btn, true); }));
 
     // Initialize
+    // Priorizar payment_method da URL sobre localStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentMethodFromUrl = urlParams.get('payment_method');
+    const alreadyRedirected = urlParams.get('_init') === '1'; // Parâmetro para evitar redirect em loop
     let saved = null;
-    try { saved = localStorage.getItem(storageKey); } catch(e) { saved = null; }
-    let initial = buttons.find(b => b.getAttribute('data-card-id') === saved) || buttons[0];
-    setActive(initial);
+    
+    if (paymentMethodFromUrl) {
+      // Se payment_method da URL é 'debit', usar botão sem data-card-id (vazio)
+      if (paymentMethodFromUrl === 'debit') {
+        saved = '';
+      } else {
+        // Caso contrário, usar o ID do cartão da URL
+        saved = paymentMethodFromUrl;
+      }
+    } else if (!alreadyRedirected) {
+      // Se não houver payment_method na URL e ainda não fizemos redirect, usar localStorage
+      // Verificar se há mensagens na página - se houver, vamos preservá-las
+      const messagesContainer = document.querySelector('.messages');
+      const hasMessages = messagesContainer && messagesContainer.children.length > 0;
+      
+      try { 
+        saved = localStorage.getItem(storageKey);
+        if (saved !== null) {
+          // Se houver mensagens, salvar no sessionStorage antes do redirect
+          if (hasMessages) {
+            try {
+              const messagesText = Array.from(messagesContainer.children).map(li => ({
+                text: li.textContent.trim(),
+                tags: li.className
+              }));
+              sessionStorage.setItem('preserved_messages', JSON.stringify(messagesText));
+            } catch(e) {
+              console.warn('Could not preserve messages:', e);
+            }
+          }
+          
+          // Sempre fazer redirect para adicionar payment_method na URL
+          // Isso garante que a coluna Tag apareça corretamente
+          const url = new URL(window.location.href);
+          if (saved && saved.trim() !== '') {
+            url.searchParams.set('payment_method', saved);
+          } else {
+            url.searchParams.set('payment_method', 'debit');
+          }
+          // Adicionar parâmetro para evitar redirect em loop
+          url.searchParams.set('_init', '1');
+          // Preservar outros parâmetros da URL (como owner_tag, next_month, etc)
+          window.location.href = url.toString();
+          return; // Sair aqui, a página vai recarregar
+        }
+      } catch(e) { 
+        saved = null; 
+      }
+    }
+    
+    // Restaurar mensagens preservadas do sessionStorage se existirem
+    try {
+      const preservedMessages = sessionStorage.getItem('preserved_messages');
+      if (preservedMessages) {
+        const messages = JSON.parse(preservedMessages);
+        if (messages.length > 0) {
+          // Aguardar um pouco para garantir que o DOM esteja pronto
+          setTimeout(function() {
+            let messagesContainer = document.querySelector('.messages');
+            // Se não existir o container, criar um
+            if (!messagesContainer) {
+              const container = document.querySelector('.container');
+              if (container) {
+                messagesContainer = document.createElement('ul');
+                messagesContainer.className = 'messages';
+                container.insertBefore(messagesContainer, container.firstChild);
+              }
+            }
+            // Adicionar as mensagens preservadas
+            if (messagesContainer) {
+              messagesContainer.innerHTML = messages.map(msg => 
+                `<li class="${msg.tags}">${msg.text}</li>`
+              ).join('');
+            }
+            // Limpar após exibir
+            sessionStorage.removeItem('preserved_messages');
+          }, 100);
+        }
+      }
+    } catch(e) {
+      console.warn('Could not restore messages:', e);
+      try {
+        sessionStorage.removeItem('preserved_messages');
+      } catch(e2) {}
+    }
+    
+    let initial = buttons.find(b => {
+      const btnId = b.getAttribute('data-card-id') || '';
+      return btnId === (saved || '');
+    }) || buttons[0];
+    setActive(initial, false); // false para não recarregar na inicialização
+    
+    // Sincronizar valor do owner_tag com o filtro da URL quando a página carregar
+    const ownerTagSelect = document.getElementById('id_owner_tag');
+    if (ownerTagSelect) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const ownerTagFromUrl = urlParams.get('owner_tag');
+      if (ownerTagFromUrl && (ownerTagFromUrl === 'Thi' || ownerTagFromUrl === 'Tha')) {
+        ownerTagSelect.value = ownerTagFromUrl;
+      }
+    }
 
     // On submit, ensure a hidden input named 'credit_card' is present with the selected id (or empty for debit)
+    // E tornar o campo owner_tag obrigatório apenas no submit se for Bradesco
     const form = document.querySelector('.transactions-layout .left-column form');
     if (form){
-      form.addEventListener('submit', function(){
+      form.addEventListener('submit', function(e){
         let hidden = form.querySelector('input[name="credit_card"]');
         if (!hidden){
           hidden = document.createElement('input');
@@ -459,7 +829,15 @@
           form.appendChild(hidden);
         }
         const active = selector.querySelector('.card-btn.active');
-        hidden.value = active ? (active.getAttribute('data-card-id') || '') : '';
+        const cardId = active ? (active.getAttribute('data-card-id') || '') : '';
+        const cardName = active ? (active.getAttribute('data-card-name') || '') : '';
+        hidden.value = cardId;
+        
+        // Tornar owner_tag obrigatório apenas se for Bradesco e estiver criando um lançamento
+        const ownerTagSelect = document.getElementById('id_owner_tag');
+        if (ownerTagSelect && cardId && 'bradesco' in cardName.toLowerCase()) {
+          ownerTagSelect.required = true;
+        }
       });
     }
   })();

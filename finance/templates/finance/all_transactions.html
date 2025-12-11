@@ -105,7 +105,7 @@
         <select id="id_subcategory" name="subcategory">
           <option value="">Todas</option>
           {% for subcat in subcategories %}
-            <option value="{{ subcat.id }}" {% if filter_subcategory|stringformat:"s" == subcat.id|stringformat:"s" %}selected{% endif %}>{{ subcat.category.name }} - {{ subcat.name }}</option>
+            <option value="{{ subcat.id }}" {% if filter_subcategory|stringformat:"s" == subcat.id|stringformat:"s" %}selected{% endif %}>{{ subcat.name }} - {{ subcat.category.name }}</option>
           {% endfor %}
         </select>
       </div>
@@ -135,18 +135,22 @@
 
 <h2 style="margin-top: 0;">{% if month == 0 %}Ano {{ year }} (Todos os meses){% else %}Mês {{ month }}/{{ year }}{% endif %}</h2>
 
-{% if messages %}
-  <ul class="messages">
-    {% for message in messages %}
-      <li class="{{ message.tags }}">{{ message }}</li>
-    {% endfor %}
-  </ul>
-{% endif %}
-
 {% if transactions %}
+  <form id="bulk_delete_form" method="post" action="{% url 'finance:bulk_delete_transactions' %}" onsubmit="return confirmBulkDelete();">
+    {% csrf_token %}
+    <div style="margin-bottom: 15px;">
+      <button type="submit" style="padding: 8px 16px; background: #c62828; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        Deletar Selecionados
+      </button>
+      <span id="selected_count" style="margin-left: 15px; color: #666; font-weight: bold;"></span>
+    </div>
+
   <table border="1" cellspacing="0" cellpadding="4">
     <thead>
       <tr>
+        <th style="width: 40px;">
+          <input type="checkbox" id="select_all_checkbox" onchange="toggleSelectAll()">
+        </th>
         <th>Data Lançamento</th>
         <th>Data Pagamento</th>
         <th>Tipo</th>
@@ -163,6 +167,9 @@
     <tbody>
       {% for t in transactions %}
         <tr>
+          <td style="text-align: center;">
+            <input type="checkbox" name="transaction_ids" value="{{ t.id }}" class="transaction_checkbox" onchange="updateSelectedCount()">
+          </td>
           <td>{{ t.date|date:"d/m/Y" }}</td>
           <td>
             {% if t.payment_date %}
@@ -187,7 +194,7 @@
           </td>
           <td>
             {% if t.subcategory %}
-              {{ t.subcategory.category.name }} - {{ t.subcategory.name }}
+              {{ t.subcategory.name }} - {{ t.subcategory.category.name }}
             {% else %}
               {{ t.category.name|default:"-" }}
             {% endif %}
@@ -220,7 +227,7 @@
             {% endif %}
           </td>
           <td>
-            <a href="{% url 'finance:edit_transaction' t.id %}" style="margin-right: 8px;">Editar</a>
+            <a href="{% url 'finance:edit_transaction' t.id %}?next={{ return_url }}" style="margin-right: 8px;">Editar</a>
             <form method="post" action="{% url 'finance:delete_transaction' t.id %}" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja deletar este lançamento?');">
               {% csrf_token %}
               <button type="submit" class="logout-link" style="color: #c62828; padding: 0; margin: 0; background: none; border: none; cursor: pointer; text-decoration: underline;">Deletar</button>
@@ -230,13 +237,102 @@
       {% endfor %}
     </tbody>
   </table>
+  </form>
   
-  <p style="margin-top: 15px; color: #666;">
-    Total de lançamentos: {{ transactions|length }}
-  </p>
+  <!-- Controles de Paginação -->
+  <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <p style="color: #666; margin: 0;">
+      Mostrando {{ transactions.start_index }} a {{ transactions.end_index }} de {{ transactions.paginator.count }} lançamento(s)
+    </p>
+    
+    <div style="display: flex; gap: 10px; align-items: center;">
+      {% if transactions.has_previous %}
+        <a href="{% url 'finance:all_transactions' %}{% if pagination_base_query %}?{{ pagination_base_query }}&{% else %}?{% endif %}page=1" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">« Primeira</a>
+        <a href="{% url 'finance:all_transactions' %}{% if pagination_base_query %}?{{ pagination_base_query }}&{% else %}?{% endif %}page={{ transactions.previous_page_number }}" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">‹ Anterior</a>
+      {% else %}
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">« Primeira</span>
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">‹ Anterior</span>
+      {% endif %}
+      
+      <span style="padding: 6px 12px; color: #333; font-weight: bold;">
+        Página {{ transactions.number }} de {{ transactions.paginator.num_pages }}
+      </span>
+      
+      {% if transactions.has_next %}
+        <a href="{% url 'finance:all_transactions' %}{% if pagination_base_query %}?{{ pagination_base_query }}&{% else %}?{% endif %}page={{ transactions.next_page_number }}" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">Próxima ›</a>
+        <a href="{% url 'finance:all_transactions' %}{% if pagination_base_query %}?{{ pagination_base_query }}&{% else %}?{% endif %}page={{ transactions.paginator.num_pages }}" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; background: #fff;">Última »</a>
+      {% else %}
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">Próxima ›</span>
+        <span style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; color: #999; background: #f5f5f5;">Última »</span>
+      {% endif %}
+    </div>
+  </div>
 {% else %}
   <p>Nenhum lançamento encontrado.</p>
 {% endif %}
+
+<script>
+  function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('select_all_checkbox');
+    const checkboxes = document.querySelectorAll('.transaction_checkbox');
+    const isChecked = selectAllCheckbox.checked;
+    
+    checkboxes.forEach(cb => {
+      cb.checked = isChecked;
+    });
+    
+    updateSelectedCount();
+  }
+
+  function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.transaction_checkbox:checked');
+    const count = checkboxes.length;
+    const countSpan = document.getElementById('selected_count');
+    
+    if (count > 0) {
+      countSpan.textContent = `${count} lançamento(s) selecionado(s)`;
+    } else {
+      countSpan.textContent = '';
+    }
+    
+    // Atualizar o checkbox "Selecionar todos"
+    const selectAllCheckbox = document.getElementById('select_all_checkbox');
+    const allCheckboxes = document.querySelectorAll('.transaction_checkbox');
+    selectAllCheckbox.checked = allCheckboxes.length > 0 && checkboxes.length === allCheckboxes.length;
+    selectAllCheckbox.indeterminate = checkboxes.length > 0 && checkboxes.length < allCheckboxes.length;
+  }
+
+  function confirmBulkDelete() {
+    const checkboxes = document.querySelectorAll('.transaction_checkbox:checked');
+    if (checkboxes.length === 0) {
+      alert('Por favor, selecione pelo menos um lançamento para deletar.');
+      return false;
+    }
+    
+    return confirm(`Tem certeza que deseja deletar ${checkboxes.length} lançamento(s)? Esta ação não pode ser desfeita.`);
+  }
+
+  // Preservar os filtros após a deleção
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('bulk_delete_form');
+    if (form) {
+      // Adicionar campos hidden com os filtros atuais da URL
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.forEach((value, key) => {
+        if (key !== 'transaction_ids' && !form.querySelector(`input[name="${key}"]`)) {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value;
+          form.appendChild(input);
+        }
+      });
+    }
+    
+    // Inicializar contador
+    updateSelectedCount();
+  });
+</script>
 
 {% endblock %}
 

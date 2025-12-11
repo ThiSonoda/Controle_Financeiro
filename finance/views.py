@@ -6,6 +6,7 @@ import json
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Sum, Value, DecimalField, Q, F, Case, When
 from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect
@@ -318,9 +319,11 @@ def transactions_view(request):
                 f"Criou compra parcelada: {description or 'Sem descrição'} ({installments} parcelas de R$ {valores[0]:.2f})",
                 f"ID do grupo: {group_id}, Total: R$ {total_amount:.2f}, Subcategoria: {subcategory.name}, Conta: {account.name}, Forma de pagamento: {payment_method}"
             )
-            # Redireciona com os IDs das transações criadas
+            # Determinar payment_method para preservar o filtro na tabela
+            payment_method_param = credit_card_id if credit_card_id else 'debit'
+            # Redireciona com os IDs das transações criadas e preserva o filtro de método de pagamento
             ids_param = ','.join(map(str, created_transaction_ids))
-            return redirect(f"{reverse('finance:transactions')}?highlight={ids_param}")
+            return redirect(f"{reverse('finance:transactions')}?highlight={ids_param}&payment_method={payment_method_param}")
         else:
             # Lançamento normal (uma única transação)
             # date = data de lançamento (data informada pelo usuário)
@@ -357,8 +360,10 @@ def transactions_view(request):
                 f"Criou lançamento: {description or 'Sem descrição'} ({transaction.get_type_display()})",
                 f"Valor: R$ {amount:.2f}, Data: {t_date}, Subcategoria: {subcategory.name}, Conta: {account.name}, Forma de pagamento: {payment_method}"
             )
-            # Redireciona com o ID da transação criada
-            return redirect(f"{reverse('finance:transactions')}?highlight={transaction.id}")
+            # Determinar payment_method para preservar o filtro na tabela
+            payment_method_param = credit_card_id if credit_card_id else 'debit'
+            # Redireciona com o ID da transação criada e preserva o filtro de método de pagamento
+            return redirect(f"{reverse('finance:transactions')}?highlight={transaction.id}&payment_method={payment_method_param}")
 
     # GET
     subcategories = Subcategory.objects.all().select_related('category').order_by('category__name', 'name')
@@ -392,15 +397,28 @@ def transactions_view(request):
 
     # Filtro por forma de pagamento (nav)
     payment_method = request.GET.get('payment_method', '')
+    selected_card = None
+    is_bradesco_selected = False
     if payment_method == 'debit':
         transactions = transactions.filter(credit_card__isnull=True)
     else:
         try:
             card_id = int(payment_method)
             transactions = transactions.filter(credit_card_id=card_id)
+            # Verificar se é Bradesco
+            try:
+                selected_card = CreditCard.objects.get(id=card_id)
+                is_bradesco_selected = 'bradesco' in selected_card.name.lower()
+            except CreditCard.DoesNotExist:
+                pass
         except (TypeError, ValueError):
             # Se vazio ou inválido, não filtra por cartão
             pass
+
+    # Filtro por owner_tag (Tag) - apenas quando Bradesco está selecionado e uma tag foi escolhida
+    owner_tag_filter = request.GET.get('owner_tag', '')
+    if owner_tag_filter and owner_tag_filter in [Transaction.OWNER_THI, Transaction.OWNER_THA]:
+        transactions = transactions.filter(owner_tag=owner_tag_filter)
 
     total_signed_amount = transactions.aggregate(
         total=Coalesce(
@@ -416,7 +434,8 @@ def transactions_view(request):
         )
     )['total']
 
-    transactions = transactions.order_by('-date', '-id')
+    # Ordenar: não parcelados primeiro, parcelados por último, depois por data e ID
+    transactions = transactions.order_by('is_installment', '-date', '-id')
     
     # Obter última data usada da sessão, ou usar data de hoje
     last_date = request.session.get('last_transaction_date')
@@ -439,6 +458,8 @@ def transactions_view(request):
         'filter_month': filter_month,
         'show_next_month': show_next_month,
         'payment_method': payment_method,
+        'owner_tag_filter': owner_tag_filter,
+        'is_bradesco_selected': is_bradesco_selected,
         'default_date': last_date,
     }
     return render(request, 'finance/transactions.html', context)
@@ -474,6 +495,65 @@ def delete_transaction_view(request, transaction_id):
 
 
 @login_required
+def bulk_delete_transactions_view(request):
+    """
+    Deleta múltiplas transações em lote.
+    Apenas aceita requisições POST por segurança.
+    """
+    if request.method != 'POST':
+        messages.error(request, "Método não permitido.")
+        return redirect('finance:all_transactions')
+    
+    user = request.user
+    transaction_ids = request.POST.getlist('transaction_ids')
+    
+    if not transaction_ids:
+        messages.error(request, "Nenhum lançamento selecionado para deletar.")
+    else:
+        deleted_count = 0
+        failed_count = 0
+        
+        for transaction_id in transaction_ids:
+            try:
+                transaction = Transaction.objects.get(id=transaction_id)
+                # Registrar log antes de deletar
+                payment_method = transaction.credit_card.name if transaction.credit_card else "Débito"
+                log_action(
+                    user,
+                    f"Deletou lançamento (lote): {transaction.description or 'Sem descrição'}",
+                    f"ID: {transaction_id}, Valor: R$ {transaction.amount:.2f}, Tipo: {transaction.get_type_display()}, Data: {transaction.date}, Forma de pagamento: {payment_method}"
+                )
+                transaction.delete()
+                deleted_count += 1
+            except Transaction.DoesNotExist:
+                failed_count += 1
+        
+        if deleted_count > 0:
+            if deleted_count == 1:
+                messages.success(request, f"{deleted_count} lançamento deletado com sucesso.")
+            else:
+                messages.success(request, f"{deleted_count} lançamentos deletados com sucesso.")
+        
+        if failed_count > 0:
+            messages.warning(request, f"{failed_count} lançamento(s) não puderam ser deletados.")
+    
+    # Reconstruir URL de retorno com os filtros preservados
+    from urllib.parse import urlencode
+    filter_params = {}
+    for key in ['year', 'month', 'type', 'credit_card', 'status', 'subcategory', 'installment', 'owner_tag']:
+        value = request.POST.get(key)
+        if value:
+            filter_params[key] = value
+    
+    if filter_params:
+        return_url = reverse('finance:all_transactions') + '?' + urlencode(filter_params)
+    else:
+        return_url = reverse('finance:all_transactions')
+    
+    return redirect(return_url)
+
+
+@login_required
 def edit_transaction_view(request, transaction_id):
     """
     Edita uma transação existente.
@@ -500,28 +580,44 @@ def edit_transaction_view(request, transaction_id):
         # Validações
         if not date_str or not amount_str or not type_ or not subcategory_id or not account_id:
             messages.error(request, "Preencha todos os campos obrigatórios.")
-            return redirect('finance:edit_transaction', transaction_id=transaction_id)
+            next_param = request.GET.get('next', '')
+            redirect_url = reverse('finance:edit_transaction', args=[transaction_id])
+            if next_param:
+                redirect_url += f'?next={next_param}'
+            return redirect(redirect_url)
         
         try:
             from datetime import datetime
             t_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         except ValueError:
             messages.error(request, "Data inválida.")
-            return redirect('finance:edit_transaction', transaction_id=transaction_id)
+            next_param = request.GET.get('next', '')
+            redirect_url = reverse('finance:edit_transaction', args=[transaction_id])
+            if next_param:
+                redirect_url += f'?next={next_param}'
+            return redirect(redirect_url)
         
         try:
             from decimal import Decimal
             amount = Decimal(amount_str.replace(',', '.'))
         except Exception:
             messages.error(request, "Valor inválido.")
-            return redirect('finance:edit_transaction', transaction_id=transaction_id)
+            next_param = request.GET.get('next', '')
+            redirect_url = reverse('finance:edit_transaction', args=[transaction_id])
+            if next_param:
+                redirect_url += f'?next={next_param}'
+            return redirect(redirect_url)
         
         try:
             subcategory = Subcategory.objects.get(id=subcategory_id)
             account = Account.objects.get(id=account_id)
         except (Subcategory.DoesNotExist, Account.DoesNotExist):
             messages.error(request, "Subcategoria ou conta não encontrada.")
-            return redirect('finance:edit_transaction', transaction_id=transaction_id)
+            next_param = request.GET.get('next', '')
+            redirect_url = reverse('finance:edit_transaction', args=[transaction_id])
+            if next_param:
+                redirect_url += f'?next={next_param}'
+            return redirect(redirect_url)
         
         # Buscar cartão de crédito se informado
         credit_card = None
@@ -530,13 +626,21 @@ def edit_transaction_view(request, transaction_id):
                 credit_card = CreditCard.objects.get(id=credit_card_id)
             except CreditCard.DoesNotExist:
                 messages.error(request, "Cartão de crédito não encontrado.")
-                return redirect('finance:edit_transaction', transaction_id=transaction_id)
+                next_param = request.GET.get('next', '')
+                redirect_url = reverse('finance:edit_transaction', args=[transaction_id])
+                if next_param:
+                    redirect_url += f'?next={next_param}'
+                return redirect(redirect_url)
         
         # Validar tag do proprietário se o cartão é Bradesco
         if credit_card and 'bradesco' in credit_card.name.lower():
             if not owner_tag or owner_tag not in [Transaction.OWNER_THI, Transaction.OWNER_THA]:
                 messages.error(request, "É obrigatório selecionar a Tag (Thi ou Tha) para lançamentos no cartão Bradesco.")
-                return redirect('finance:edit_transaction', transaction_id=transaction_id)
+                next_param = request.GET.get('next', '')
+                redirect_url = reverse('finance:edit_transaction', args=[transaction_id])
+                if next_param:
+                    redirect_url += f'?next={next_param}'
+                return redirect(redirect_url)
         else:
             # Se não for Bradesco, não deve ter tag
             owner_tag = None
@@ -580,6 +684,27 @@ def edit_transaction_view(request, transaction_id):
             f"ID: {transaction_id}, Valor: R$ {amount:.2f}, Tipo: {type_}, Data: {t_date}, Subcategoria: {subcategory.name}, Forma de pagamento: {payment_method}"
         )
         messages.success(request, "Lançamento atualizado com sucesso.")
+        
+        # Redirecionar para a página de origem se especificada
+        from urllib.parse import unquote
+        next_url = request.GET.get('next') or request.POST.get('next')
+        if next_url:
+            # Se next_url é um nome de view, fazer redirect direto
+            if next_url == 'transactions':
+                return redirect('finance:transactions')
+            elif next_url == 'all_transactions':
+                return redirect('finance:all_transactions')
+            else:
+                # Decodificar URL se foi codificada
+                decoded_url = unquote(next_url)
+                # Caso contrário, assumir que é uma URL completa (pode ser relativa ou absoluta)
+                try:
+                    return redirect(decoded_url)
+                except:
+                    # Se falhar, usar fallback
+                    return redirect('finance:transactions')
+        
+        # Fallback padrão
         return redirect('finance:transactions')
     
     # GET - mostrar formulário de edição
@@ -902,22 +1027,44 @@ def report_view(request):
                         f"Mês/Ano: {month:02d}/{year}"
                     )
             else:
-                budget, created = MonthlyBudget.objects.update_or_create(
-                    user=user,
-                    subcategory=subcategory,
-                    year=year,
-                    month=month,
-                    defaults={
-                        'amount': amount,
-                        'comment': comment_str if comment_str else None
-                    },
-                )
-                action = "Criou" if created else "Atualizou"
-                log_action(
-                    user,
-                    f"{action} orçamento: {subcategory.name}",
-                    f"Mês/Ano: {month:02d}/{year}, Valor: R$ {amount:.2f}"
-                )
+                # Verificar se o orçamento já existe e se houve mudança
+                try:
+                    existing_budget = MonthlyBudget.objects.get(
+                        user=user,
+                        subcategory=subcategory,
+                        year=year,
+                        month=month
+                    )
+                    # Comparar valores e comentários
+                    amount_changed = existing_budget.amount != amount
+                    comment_value = comment_str if comment_str else None
+                    comment_changed = existing_budget.comment != comment_value
+                    
+                    if amount_changed or comment_changed:
+                        # Atualizar apenas se houver mudança
+                        existing_budget.amount = amount
+                        existing_budget.comment = comment_value
+                        existing_budget.save()
+                        log_action(
+                            user,
+                            f"Atualizou orçamento: {subcategory.name}",
+                            f"Mês/Ano: {month:02d}/{year}, Valor: R$ {amount:.2f}"
+                        )
+                except MonthlyBudget.DoesNotExist:
+                    # Criar novo orçamento
+                    MonthlyBudget.objects.create(
+                        user=user,
+                        subcategory=subcategory,
+                        year=year,
+                        month=month,
+                        amount=amount,
+                        comment=comment_str if comment_str else None
+                    )
+                    log_action(
+                        user,
+                        f"Criou orçamento: {subcategory.name}",
+                        f"Mês/Ano: {month:02d}/{year}, Valor: R$ {amount:.2f}"
+                    )
 
         messages.success(request, "Orçamento salvo com sucesso.")
         return redirect(f"{reverse('finance:report')}?year={year}&month={month}")
@@ -1389,12 +1536,50 @@ def all_transactions_view(request):
     # Ordenar pelo dia de lançamento (mais recentes primeiro)
     transactions = transactions.order_by('-date', '-id')
     
+    # Paginação: 100 itens por página
+    paginator = Paginator(transactions, 100)
+    page_number = request.GET.get('page', 1)
+    transactions_page = paginator.get_page(page_number)
+    
     # Buscar dados para os filtros
     credit_cards = CreditCard.objects.all().order_by('name')
     subcategories = Subcategory.objects.select_related('category').all().order_by('category__name', 'name')
     
+    # Construir URL de retorno com todos os filtros (para redirecionamento após edição)
+    from urllib.parse import urlencode, quote
+    filter_params = {
+        'year': str(year),
+        'month': str(month),
+    }
+    if filter_type:
+        filter_params['type'] = filter_type
+    if filter_credit_card:
+        filter_params['credit_card'] = filter_credit_card
+    if filter_status:
+        filter_params['status'] = filter_status
+    if filter_subcategory:
+        filter_params['subcategory'] = filter_subcategory
+    if filter_installment:
+        filter_params['installment'] = filter_installment
+    if filter_owner_tag:
+        filter_params['owner_tag'] = filter_owner_tag
+    
+    # Construir URL completa e codificar para uso como parâmetro next
+    base_url = reverse('finance:all_transactions')
+    query_string = urlencode(filter_params)
+    full_url = f"{base_url}?{query_string}"
+    # Codificar a URL completa para passar como parâmetro
+    return_url = quote(full_url, safe='')
+    
+    # Para uso no template (sem codificar)
+    return_url_plain = f"{base_url}?{query_string}"
+    
+    # Construir query string base para paginação (sem page)
+    pagination_base_query = query_string
+    
     context = {
-        'transactions': transactions,
+        'transactions': transactions_page,
+        'pagination_base_query': pagination_base_query,
         'year': year,
         'month': month,
         'credit_cards': credit_cards,
@@ -1405,6 +1590,8 @@ def all_transactions_view(request):
         'filter_subcategory': filter_subcategory,
         'filter_installment': filter_installment,
         'filter_owner_tag': filter_owner_tag,
+        'return_url': return_url,
+        'return_url_plain': return_url_plain,
     }
     return render(request, 'finance/all_transactions.html', context)
 
@@ -1415,7 +1602,12 @@ def all_logs_view(request):
     Página para listar todos os logs de ações em uma tabela.
     """
     # Buscar todos os logs ordenados por data (mais recentes primeiro)
-    logs = ActionLog.objects.all().select_related('user').order_by('-timestamp')
+    logs_list = ActionLog.objects.all().select_related('user').order_by('-timestamp')
+    
+    # Paginação: 50 itens por página
+    paginator = Paginator(logs_list, 50)
+    page_number = request.GET.get('page', 1)
+    logs = paginator.get_page(page_number)
     
     context = {
         'logs': logs,
@@ -1563,9 +1755,11 @@ def dashboard_view(request):
     subcategories_chart_data = []
     
     # Buscar todas as subcategorias
-    all_subcategories = Subcategory.objects.select_related('category').all().order_by('category__name', 'name')
+    exp_subcategories = Subcategory.objects.select_related('category').filter(
+        category__is_income=False  #Somente Despesas
+    ).order_by('category__name', 'name')
     
-    for subcat in all_subcategories:
+    for subcat in exp_subcategories:
         # Valor gasto/recebido no mês
         spent = Transaction.objects.filter(
             payment_date__year=year,
