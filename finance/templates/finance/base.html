@@ -10,11 +10,11 @@
 </head>
 <body>
 
-<header>
+<header style="position: fixed; top: 0; left: 0; right: 0; width: 100%; z-index: 1000;">
     Sistema Financeiro Sonoda - 2026
 </header>
 
-<nav>
+<nav style="position: fixed; top: 48px; left: 0; right: 0; width: 100%; max-width: 100vw; z-index: 999; box-sizing: border-box; overflow: visible;">
     <a href="{% url 'finance:dashboard' %}">Dashboard</a>
     <a href="{% url 'finance:transactions' %}">Lançamentos</a>
     <a href="{% url 'finance:report' %}">Relatórios</a>
@@ -23,7 +23,7 @@
     <a href="{% url 'finance:all_logs' %}">Logs</a>
 
     {% if user.is_authenticated %}
-    <span style="float:right; margin-right:10px;">
+    <span style="float:right; margin-right:20px; white-space: nowrap; padding-left: 10px;">
         Olá, {{ user.username }} |
         <form action="{% url 'logout' %}" method="post" style="display:inline;">
             {% csrf_token %}
@@ -33,11 +33,11 @@
         </form>
     </span>
 {% else %}
-    <a href="{% url 'login' %}" style="float:right;">Entrar</a>
+    <a href="{% url 'login' %}" style="float:right; margin-right:20px;">Entrar</a>
 {% endif %}
 </nav>
 
-<div class="container">
+<div class="container" style="padding-top: 110px !important;">
     {% if messages %}
         <ul class="messages">
             {% for message in messages %}

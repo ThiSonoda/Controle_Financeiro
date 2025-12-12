@@ -246,6 +246,7 @@ def transactions_view(request):
                 return redirect('finance:transactions')
         
         # Validar tag do proprietário se o cartão é Bradesco
+        # A tag agora vem automaticamente do nav selecionado (Bradesco Thi ou Bradesco Tha)
         if credit_card and 'bradesco' in credit_card.name.lower():
             if not owner_tag or owner_tag not in [Transaction.OWNER_THI, Transaction.OWNER_THA]:
                 messages.error(request, "É obrigatório selecionar a Tag (Thi ou Tha) para lançamentos no cartão Bradesco.")
@@ -373,7 +374,7 @@ def transactions_view(request):
     
     # Obter mês/ano para exibição das faturas de cartão de crédito
     # Usa sessão específica para manter o valor entre recarregamentos
-    year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='invoice_')
+    year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='shared_')
     
     # Verificar se deve mostrar mês seguinte
     show_next_month = request.GET.get('next_month') == '1'
@@ -1474,11 +1475,11 @@ def credit_cards_view(request):
 def all_transactions_view(request):
     """
     Página para listar todos os lançamentos em uma tabela.
-    Filtra por mês/ano usando a sessão compartilhada com a página de Relatório.
+    Filtra por mês/ano usando sessão independente (não compartilhada com outras páginas).
     Suporta filtros adicionais: tipo, cartão, status, categoria, parcelado.
     """
-    # Obter mês/ano da sessão compartilhada (mesma da página de Relatório)
-    year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='shared_')
+    # Obter mês/ano da sessão independente (não compartilhada com outras páginas)
+    year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='all_transactions_')
     
     # Iniciar query com filtro de ano
     transactions = Transaction.objects.filter(
@@ -1649,8 +1650,8 @@ def dashboard_view(request):
     """
     user = request.user
     
-    # Obter ano/mês dos parâmetros GET ou usar sessão/padrão
-    year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='dashboard_')
+    # Obter ano/mês dos parâmetros GET ou usar sessão compartilhada (com Dashboard, Lançamentos e Relatórios)
+    year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='shared_')
     
     # Saldo total das contas (sempre atual, não depende do filtro de mês)
     accounts = Account.objects.all()

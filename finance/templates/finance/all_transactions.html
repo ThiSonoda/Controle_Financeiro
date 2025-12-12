@@ -46,6 +46,58 @@
     gap: 10px;
     margin-top: 10px;
   }
+  
+  /* Tooltip para comentário */
+  .comment-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .comment-icon:hover {
+    border-color: #666 !important;
+    color: #666 !important;
+  }
+  
+  .comment-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px 12px;
+    position: absolute;
+    z-index: 1000;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-width: 300px;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: opacity 0.3s, visibility 0.3s;
+    pointer-events: none;
+  }
+  
+  .comment-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+  }
+  
+  .comment-icon:hover .comment-tooltip {
+    visibility: visible;
+    opacity: 1;
+  }
 </style>
 
 <div class="filters-container">
@@ -167,7 +219,6 @@
         <th>Cartão</th>
         <th>Tag</th>
         <th>Descrição</th>
-        <th>Comentário</th>
         <th>Status</th>
         <th>Ações</th>
       </tr>
@@ -215,12 +266,13 @@
               -
             {% endif %}
           </td>
-          <td>{{ t.description|default:"-" }}</td>
           <td>
-            {% if t.comment %}
-              <span title="{{ t.comment }}">{{ t.comment|truncatewords:10 }}</span>
-            {% else %}
-              -
+            {{ t.description|default:"-" }}
+            {% if t.comment and t.comment|length > 0 %}
+              <span class="comment-icon" style="cursor: pointer; margin-left: 5px; vertical-align: middle; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #999; color: #999; font-size: 8px; font-weight: bold; font-style: italic; font-family: serif; line-height: 1;">
+                i
+                <span class="comment-tooltip">{{ t.comment }}</span>
+              </span>
             {% endif %}
           </td>
           <td>

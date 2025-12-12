@@ -8,9 +8,15 @@
   
   <!-- Card selector nav (Débito + Credit Cards) -->
   <div id="card_selector" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-    <button type="button" class="card-btn" data-card-id="" data-card-name="">Débito</button>
+    <button type="button" class="card-btn" data-card-id="" data-card-name="" data-owner-tag="">Débito</button>
     {% for card in credit_cards %}
-      <button type="button" class="card-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}">{{ card.name }}</button>
+      {% if 'bradesco' in card.name.lower %}
+        <!-- Separar Bradesco em dois navs: Bradesco Thi e Bradesco Tha -->
+        <button type="button" class="card-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}" data-owner-tag="Thi">Bradesco Thi</button>
+        <button type="button" class="card-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}" data-owner-tag="Tha">Bradesco Tha</button>
+      {% else %}
+        <button type="button" class="card-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}" data-owner-tag="">{{ card.name }}</button>
+      {% endif %}
     {% endfor %}
   </div>
 </div>
@@ -178,14 +184,8 @@
         <textarea id="id_comment" name="comment" rows="3" placeholder="Adicione um comentário sobre este lançamento..."></textarea>
       </div>
 
-      <div id="owner_tag_field" style="display: none;">
-        <label for="id_owner_tag">Tag (obrigatório para cartão Bradesco):</label>
-        <select id="id_owner_tag" name="owner_tag" onchange="applyOwnerTagFilter()">
-          <option value="">-- selecione --</option>
-          <option value="Thi" {% if owner_tag_filter == 'Thi' %}selected{% endif %}>Thiago (Thi)</option>
-          <option value="Tha" {% if owner_tag_filter == 'Tha' %}selected{% endif %}>Thaís (Tha)</option>
-        </select>
-      </div>
+      <!-- Campo owner_tag agora é hidden e preenchido automaticamente pelo JavaScript -->
+      <input type="hidden" id="id_owner_tag" name="owner_tag" value="">
 
       <fieldset id="installment_fieldset" style="margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; display: none;">
     <legend>Compra parcelada no cartão</legend>
@@ -389,16 +389,7 @@
       window.location.href = url.toString();
     }
     
-    function applyOwnerTagFilter() {
-      const ownerTagSelect = document.getElementById('id_owner_tag');
-      const url = new URL(window.location.href);
-      if (ownerTagSelect && ownerTagSelect.value) {
-        url.searchParams.set('owner_tag', ownerTagSelect.value);
-      } else {
-        url.searchParams.delete('owner_tag');
-      }
-      window.location.href = url.toString();
-    }
+    // Função applyOwnerTagFilter removida - a tag agora é definida automaticamente pelo nav selecionado
   </script>
 </div>
 
@@ -1015,7 +1006,14 @@
       buttons.forEach(b => b.classList.toggle('active', b === button));
       const id = button.getAttribute('data-card-id') || '';
       const cardName = button.getAttribute('data-card-name') || '';
+      const ownerTag = button.getAttribute('data-owner-tag') || ''; // Obter tag do botão
       try { localStorage.setItem(storageKey, id); } catch(e) {}
+      
+      // Definir automaticamente o campo hidden owner_tag baseado no nav selecionado
+      const ownerTagInput = document.getElementById('id_owner_tag');
+      if (ownerTagInput) {
+        ownerTagInput.value = ownerTag; // Preencher automaticamente com a tag do nav
+      }
       
       // Mostrar/ocultar opção de compra parcelada baseado na seleção
       const installmentFieldset = document.getElementById('installment_fieldset');
@@ -1040,9 +1038,11 @@
         const url = new URL(window.location.href);
         if (id && id.trim() !== '') {
           url.searchParams.set('payment_method', id);
-          // Se não for Bradesco, remover filtro de tag
+          // Se for Bradesco, adicionar filtro de tag
           const isBradesco = cardName && cardName.toLowerCase().includes('bradesco');
-          if (!isBradesco) {
+          if (isBradesco && ownerTag) {
+            url.searchParams.set('owner_tag', ownerTag);
+          } else {
             url.searchParams.delete('owner_tag');
           }
         } else {
@@ -1053,39 +1053,24 @@
         window.location.href = url.toString();
         return; // evita execução extra após intenção de recarregar
       }
-
-      // Mostrar/ocultar campo de tag baseado no cartão selecionado
-      const ownerTagField = document.getElementById('owner_tag_field');
-      const ownerTagSelect = document.getElementById('id_owner_tag');
-      if (ownerTagField && ownerTagSelect) {
-        // Verificar se o cartão é Bradesco (comparação case-insensitive)
-        const isBradesco = cardName && cardName.toLowerCase().includes('bradesco');
-        if (isBradesco && id && id.trim() !== '') {
-          ownerTagField.style.display = 'block';
-          // Não tornar obrigatório aqui - será validado apenas no submit do formulário
-        } else {
-          ownerTagField.style.display = 'none';
-          ownerTagSelect.value = ''; // Limpar valor quando não é Bradesco
-        }
-      }
     }
 
     buttons.forEach(btn => btn.addEventListener('click', function(){ setActive(btn, true); }));
 
     // Initialize
     // Priorizar payment_method da URL sobre localStorage
-    const urlParams = new URLSearchParams(window.location.search);
-    const paymentMethodFromUrl = urlParams.get('payment_method');
-    const alreadyRedirected = urlParams.get('_init') === '1'; // Parâmetro para evitar redirect em loop
+    const urlParamsInit2 = new URLSearchParams(window.location.search);
+    const paymentMethodFromUrlInit2 = urlParamsInit2.get('payment_method');
+    const alreadyRedirected = urlParamsInit2.get('_init') === '1'; // Parâmetro para evitar redirect em loop
     let saved = null;
     
-    if (paymentMethodFromUrl) {
+    if (paymentMethodFromUrlInit2) {
       // Se payment_method da URL é 'debit', usar botão sem data-card-id (vazio)
-      if (paymentMethodFromUrl === 'debit') {
+      if (paymentMethodFromUrlInit2 === 'debit') {
         saved = '';
       } else {
         // Caso contrário, usar o ID do cartão da URL
-        saved = paymentMethodFromUrl;
+        saved = paymentMethodFromUrlInit2;
       }
     } else if (!alreadyRedirected) {
       // Se não houver payment_method na URL e ainda não fizemos redirect, usar localStorage
@@ -1164,21 +1149,46 @@
       } catch(e2) {}
     }
     
-    let initial = buttons.find(b => {
-      const btnId = b.getAttribute('data-card-id') || '';
-      return btnId === (saved || '');
-    }) || buttons[0];
-    setActive(initial, false); // false para não recarregar na inicialização
+    // Inicializar botão ativo considerando payment_method e owner_tag da URL
+    const urlParamsInit = new URLSearchParams(window.location.search);
+    const paymentMethodFromUrlInit = urlParamsInit.get('payment_method');
+    const ownerTagFromUrl = urlParamsInit.get('owner_tag');
     
-    // Sincronizar valor do owner_tag com o filtro da URL quando a página carregar
-    const ownerTagSelect = document.getElementById('id_owner_tag');
-    if (ownerTagSelect) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const ownerTagFromUrl = urlParams.get('owner_tag');
-      if (ownerTagFromUrl && (ownerTagFromUrl === 'Thi' || ownerTagFromUrl === 'Tha')) {
-        ownerTagSelect.value = ownerTagFromUrl;
+    let initial = null;
+    if (paymentMethodFromUrlInit) {
+      if (paymentMethodFromUrlInit === 'debit') {
+        initial = buttons.find(b => {
+          const btnId = b.getAttribute('data-card-id') || '';
+          return btnId === '';
+        });
+      } else {
+        // Se for Bradesco e houver tag na URL, encontrar o botão correto
+        if (ownerTagFromUrl && (ownerTagFromUrl === 'Thi' || ownerTagFromUrl === 'Tha')) {
+          initial = buttons.find(b => {
+            const btnId = b.getAttribute('data-card-id') || '';
+            const btnTag = b.getAttribute('data-owner-tag') || '';
+            return btnId === paymentMethodFromUrlInit && btnTag === ownerTagFromUrl;
+          });
+        }
+        // Se não encontrou pelo tag, procurar apenas pelo ID do cartão
+        if (!initial) {
+          initial = buttons.find(b => {
+            const btnId = b.getAttribute('data-card-id') || '';
+            return btnId === paymentMethodFromUrlInit;
+          });
+        }
       }
     }
+    
+    // Se não encontrou pela URL, usar localStorage ou primeiro botão
+    if (!initial) {
+      initial = buttons.find(b => {
+        const btnId = b.getAttribute('data-card-id') || '';
+        return btnId === (saved || '');
+      }) || buttons[0];
+    }
+    
+    setActive(initial, false); // false para não recarregar na inicialização
 
     // On submit, ensure a hidden input named 'credit_card' is present with the selected id (or empty for debit)
     // E tornar o campo owner_tag obrigatório apenas no submit se for Bradesco
@@ -1193,14 +1203,11 @@
           form.appendChild(hidden);
         }
         const active = selector.querySelector('.card-btn.active');
-        const cardId = active ? (active.getAttribute('data-card-id') || '') : '';
-        const cardName = active ? (active.getAttribute('data-card-name') || '') : '';
-        hidden.value = cardId;
-        
-        // Tornar owner_tag obrigatório apenas se for Bradesco e estiver criando um lançamento
-        const ownerTagSelect = document.getElementById('id_owner_tag');
-        if (ownerTagSelect && cardId && 'bradesco' in cardName.toLowerCase()) {
-          ownerTagSelect.required = true;
+        if (active) {
+          const cardId = active.getAttribute('data-card-id') || '';
+          hidden.value = cardId;
+          // O owner_tag já está sendo preenchido automaticamente pelo setActive
+          // Não precisa tornar obrigatório, pois já está sendo definido pelo nav
         }
       });
     }
