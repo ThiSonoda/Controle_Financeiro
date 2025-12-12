@@ -24,5 +24,7 @@ urlpatterns = [
     path('budget-templates/<int:template_id>/delete/', views.budget_template_delete_view, name='budget_template_delete'),
     path('budget-templates/apply/', views.budget_template_apply_view, name='budget_template_apply'),
     path('budget-templates/save-current/', views.budget_template_save_current_view, name='budget_template_save_current'),
+    path('legends/', views.legends_view, name='legends'),
+    path('subcategory-budget-info/', views.subcategory_budget_info_view, name='subcategory_budget_info'),
     # path('credit-cards/', views.credit_cards_view, name='credit_cards'),
 ]

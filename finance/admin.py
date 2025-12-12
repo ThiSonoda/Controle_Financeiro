@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, ActionLog, CreditCard, BudgetTemplate, BudgetTemplateItem
+from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, ActionLog, CreditCard, BudgetTemplate, BudgetTemplateItem, Legend
 
 admin.site.register(Category)
 admin.site.register(Subcategory)
@@ -42,3 +42,12 @@ class BudgetTemplateAdmin(admin.ModelAdmin):
     inlines = [BudgetTemplateItemInline]
 
 admin.site.register(BudgetTemplate, BudgetTemplateAdmin)
+
+class LegendAdmin(admin.ModelAdmin):
+    list_display = ('description', 'translation', 'user', 'created_at', 'updated_at')
+    list_display_links = ('description', 'translation')
+    list_filter = ('created_at', 'updated_at', 'user')
+    search_fields = ('description', 'translation')
+    readonly_fields = ('created_at', 'updated_at')
+
+admin.site.register(Legend, LegendAdmin)

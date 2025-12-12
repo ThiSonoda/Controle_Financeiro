@@ -186,3 +186,21 @@ class BudgetTemplateItem(models.Model):
 
     def __str__(self):
         return f"{self.template.name} - {self.subcategory.name}: R$ {self.amount}"
+
+
+class Legend(models.Model):
+    """Legendas para traduzir descrições de cartão de crédito."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    description = models.CharField(max_length=200, help_text="Descrição como aparece no cartão de crédito")
+    translation = models.CharField(max_length=200, help_text="Tradução/Descrição amigável")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Legenda'
+        verbose_name_plural = 'Legendas'
+        ordering = ['description']
+        unique_together = ('user', 'description')
+
+    def __str__(self):
+        return f"{self.description} → {self.translation}"

@@ -101,15 +101,6 @@
         </select>
       </div>
       <div class="filter-group">
-        <label for="id_subcategory">Subcategoria:</label>
-        <select id="id_subcategory" name="subcategory">
-          <option value="">Todas</option>
-          {% for subcat in subcategories %}
-            <option value="{{ subcat.id }}" {% if filter_subcategory|stringformat:"s" == subcat.id|stringformat:"s" %}selected{% endif %}>{{ subcat.name }} - {{ subcat.category.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="filter-group">
         <label for="id_installment">Parcelado:</label>
         <select id="id_installment" name="installment">
           <option value="">Todos</option>
@@ -124,6 +115,23 @@
           <option value="Thi" {% if filter_owner_tag == "Thi" %}selected{% endif %}>Thiago</option>
           <option value="Tha" {% if filter_owner_tag == "Tha" %}selected{% endif %}>Thaís</option>
         </select>
+      </div>
+    </div>
+    <div class="filters-row">
+      <div class="filter-group" style="flex: 1; position: relative;">
+        <label for="id_subcategory_search">Subcategoria:</label>
+        <input type="text" 
+               id="id_subcategory_search" 
+               autocomplete="off"
+               placeholder="Digite para buscar..."
+               style="width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: inherit; height: 32px; line-height: 1.4;">
+        <input type="hidden" id="id_subcategory" name="subcategory" value="{{ filter_subcategory }}">
+        <div id="subcategory_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; border-radius: 0 0 4px 4px; max-height: 300px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        </div>
+      </div>
+      <div class="filter-group" style="flex: 1;">
+        <label for="id_description">Descrição:</label>
+        <input type="text" id="id_description" name="description" value="{{ filter_description }}" placeholder="Buscar na descrição..." style="width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: inherit; height: 32px; line-height: 1.4;">
       </div>
     </div>
     <div class="filter-buttons">
@@ -236,6 +244,15 @@
         </tr>
       {% endfor %}
     </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4" style="font-weight: bold; text-align: right;">Total</td>
+        <td style="font-weight: bold; min-width: 100px;">
+          R$ {{ total_signed_amount|floatformat:2 }}
+        </td>
+        <td colspan="7"></td>
+      </tr>
+    </tfoot>
   </table>
   </form>
   
@@ -332,6 +349,157 @@
     // Inicializar contador
     updateSelectedCount();
   });
+</script>
+
+<!-- JavaScript para campo de busca de subcategoria -->
+<script>
+  (function() {
+    // Preparar dados de subcategorias do template
+    const subcategories = [
+      {% for subcat in subcategories %}
+      {
+        id: {{ subcat.id }},
+        name: "{{ subcat.name|escapejs }}",
+        category: "{{ subcat.category.name|escapejs }}",
+        displayText: "{{ subcat.category.name|escapejs }} - {{ subcat.name|escapejs }}",
+        isIncome: {{ subcat.category.is_income|lower }}
+      }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+
+    const searchInput = document.getElementById('id_subcategory_search');
+    const hiddenInput = document.getElementById('id_subcategory');
+    const dropdown = document.getElementById('subcategory_dropdown');
+    let selectedIndex = -1;
+    let filteredSubcategories = [];
+
+    // Buscar subcategoria selecionada inicialmente
+    const initialSubcategoryId = hiddenInput.value;
+    if (initialSubcategoryId) {
+      const selected = subcategories.find(s => s.id == initialSubcategoryId);
+      if (selected) {
+        searchInput.value = selected.displayText;
+      }
+    }
+
+    function filterSubcategories(query) {
+      if (!query || query.trim() === '') {
+        return subcategories;
+      }
+      const lowerQuery = query.toLowerCase();
+      return subcategories.filter(subcat => 
+        subcat.name.toLowerCase().includes(lowerQuery) ||
+        subcat.category.toLowerCase().includes(lowerQuery) ||
+        subcat.displayText.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    function renderDropdown(subcategories) {
+      filteredSubcategories = subcategories;
+      selectedIndex = -1;
+      
+      if (subcategories.length === 0) {
+        dropdown.innerHTML = '<div style="padding: 10px; color: #666;">Nenhuma subcategoria encontrada</div>';
+        dropdown.style.display = 'block';
+        return;
+      }
+
+      dropdown.innerHTML = subcategories.map((subcat, index) => 
+        `<div class="subcategory-option" data-index="${index}" data-id="${subcat.id}" style="padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #eee;" onmouseover="this.style.backgroundColor='#f5f5f5'" onmouseout="this.style.backgroundColor='white'">
+          <strong>${subcat.name}</strong> - ${subcat.category}${subcat.isIncome ? ' <span style="color: #2e7d32;">(receita)</span>' : ''}
+        </div>`
+      ).join('');
+
+      dropdown.querySelectorAll('.subcategory-option').forEach(option => {
+        option.addEventListener('click', function() {
+          const index = parseInt(this.getAttribute('data-index'));
+          selectSubcategory(filteredSubcategories[index]);
+        });
+      });
+
+      dropdown.style.display = 'block';
+    }
+
+    function selectSubcategory(subcat) {
+      hiddenInput.value = subcat.id;
+      searchInput.value = subcat.displayText;
+      dropdown.style.display = 'none';
+      selectedIndex = -1;
+    }
+
+    function highlightOption(index) {
+      const options = dropdown.querySelectorAll('.subcategory-option');
+      options.forEach((opt, i) => {
+        if (i === index) {
+          opt.style.backgroundColor = '#e3f2fd';
+          opt.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } else {
+          opt.style.backgroundColor = 'white';
+        }
+      });
+    }
+
+    searchInput.addEventListener('input', function() {
+      const query = this.value;
+      const filtered = filterSubcategories(query);
+      renderDropdown(filtered);
+      
+      if (hiddenInput.value) {
+        const selected = subcategories.find(s => s.id == hiddenInput.value);
+        if (!selected || selected.displayText !== query) {
+          hiddenInput.value = '';
+        }
+      }
+    });
+
+    searchInput.addEventListener('focus', function() {
+      if (this.value) {
+        const filtered = filterSubcategories(this.value);
+        renderDropdown(filtered);
+      } else {
+        renderDropdown(subcategories);
+      }
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+      if (!dropdown.style.display || dropdown.style.display === 'none') {
+        return;
+      }
+
+      const options = dropdown.querySelectorAll('.subcategory-option');
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, options.length - 1);
+        highlightOption(selectedIndex);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, -1);
+        if (selectedIndex >= 0) {
+          highlightOption(selectedIndex);
+        } else {
+          options.forEach(opt => opt.style.backgroundColor = 'white');
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0 && filteredSubcategories[selectedIndex]) {
+          selectSubcategory(filteredSubcategories[selectedIndex]);
+        } else if (filteredSubcategories.length === 1) {
+          selectSubcategory(filteredSubcategories[0]);
+        }
+      } else if (e.key === 'Escape') {
+        dropdown.style.display = 'none';
+        selectedIndex = -1;
+      }
+    });
+
+    // Fechar dropdown ao clicar fora
+    document.addEventListener('click', function(e) {
+      if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+  })();
 </script>
 
 {% endblock %}

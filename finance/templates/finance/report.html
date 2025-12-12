@@ -20,10 +20,10 @@
     {% if not is_edit_mode %}
       <a href="?year={{ year }}&month={{ month }}&edit=1" style="padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Editar</a>
     {% else %}
-      <button type="button" onclick="openTemplatesModal()" style="padding: 8px 16px; background-color: #9C27B0; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Templates</button>
-      <button type="button" onclick="openSaveTemplateModal()" style="padding: 8px 16px; background-color: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Salvar como Template</button>
-      <button type="button" onclick="saveBudget()" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Salvar</button>
-      <a href="?year={{ year }}&month={{ month }}" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block;">Cancelar</a>
+      <button type="button" onclick="openTemplatesModal()" style="padding: 8px 16px; background-color: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px; font-size: 14px; line-height: 1.5; height: 36px; box-sizing: border-box;">Templates</button>
+      <button type="button" onclick="openSaveTemplateModal()" style="padding: 8px 16px; background-color: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px; font-size: 14px; line-height: 1.5; height: 36px; box-sizing: border-box;">Salvar como Template</button>
+      <button type="button" onclick="saveBudget()" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px; font-size: 14px; line-height: 1.5; height: 36px; box-sizing: border-box;">Salvar</button>
+      <a href="?year={{ year }}&month={{ month }}" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px; line-height: 1.5; height: 36px; box-sizing: border-box;">Cancelar</a>
     {% endif %}
   </div>
 </div>
@@ -97,6 +97,27 @@
   </div>
 </div>
 
+{% if is_edit_mode %}
+<!-- Resumo em Tempo Real do Modo de Edição -->
+<div id="editModeSummary" style="position: sticky; top: 10px; z-index: 1000; background-color: #e3f2fd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 2px solid #2196F3; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+  <h3 style="margin-top: 0; color: #1976d2;">Resumo do Orçamento (Atualização em Tempo Real)</h3>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+    <div>
+      <strong>Total Receitas:</strong><br>
+      <span id="editModeTotalIncome" style="font-size: 18px; color: #2e7d32; font-weight: bold;">R$ 0.00</span>
+    </div>
+    <div>
+      <strong>Total Despesas:</strong><br>
+      <span id="editModeTotalExpenses" style="font-size: 18px; color: #c62828; font-weight: bold;">R$ 0.00</span>
+    </div>
+    <div>
+      <strong>Saldo Final:</strong><br>
+      <span id="editModeBalance" style="font-size: 18px; font-weight: bold;">R$ 0.00</span>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if income_categories or expense_categories %}
   <!-- Tabela de Receitas -->
   {% if income_categories %}
@@ -127,7 +148,7 @@
               <td>{{ subcat.subcategory_name }}</td>
               <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget|default:0 }}">
                 {% if is_edit_mode %}
-                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" style="width: 100%; box-sizing: border-box;">
+                  <input type="number" class="budget-input" data-category-type="income" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" oninput="updateEditModeSummary()" style="width: 100%; box-sizing: border-box;">
                 {% else %}
                   <span class="budget-text">R$ {{ subcat.budget|default:0|floatformat:2 }}</span>
                 {% endif %}
@@ -204,7 +225,7 @@
               <td>{{ subcat.subcategory_name }}</td>
               <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget|default:0 }}">
                 {% if is_edit_mode %}
-                  <input type="number" class="budget-input" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" style="width: 100%; box-sizing: border-box;">
+                  <input type="number" class="budget-input" data-category-type="expense" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" oninput="updateEditModeSummary()" style="width: 100%; box-sizing: border-box;">
                 {% else %}
                   <span class="budget-text">R$ {{ subcat.budget|default:0|floatformat:2 }}</span>
                 {% endif %}
@@ -897,6 +918,37 @@ function updateEditTemplateTotals() {
   const balanceElement = document.getElementById('editTemplateBalance');
   balanceElement.textContent = 'R$ ' + balance.toFixed(2);
   balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
+}
+
+// Função para calcular e atualizar resumo do modo de edição em tempo real
+function updateEditModeSummary() {
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  
+  document.querySelectorAll('.budget-input').forEach(input => {
+    const value = parseFloat(input.value) || 0;
+    const categoryType = input.getAttribute('data-category-type');
+    
+    if (categoryType === 'income') {
+      totalIncome += value;
+    } else if (categoryType === 'expense') {
+      totalExpenses += value;
+    }
+  });
+  
+  const balance = totalIncome - totalExpenses;
+  
+  document.getElementById('editModeTotalIncome').textContent = 'R$ ' + totalIncome.toFixed(2);
+  document.getElementById('editModeTotalExpenses').textContent = 'R$ ' + totalExpenses.toFixed(2);
+  
+  const balanceElement = document.getElementById('editModeBalance');
+  balanceElement.textContent = 'R$ ' + balance.toFixed(2);
+  balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
+}
+
+// Atualizar resumo ao carregar a página no modo de edição
+if (document.getElementById('editModeSummary')) {
+  updateEditModeSummary();
 }
 
 // Fechar modais ao clicar fora

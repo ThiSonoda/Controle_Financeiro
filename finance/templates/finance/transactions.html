@@ -2,7 +2,18 @@
 {% load static %}
 
 {% block content %}
-<h1>Lançamentos (Receitas / Despesas)</h1>
+<!-- Cabeçalho com título e navs -->
+<div style="margin-bottom: 20px;">
+  <h1 style="margin-top: 0; margin-bottom: 12px;">Lançamentos (Receitas / Despesas)</h1>
+  
+  <!-- Card selector nav (Débito + Credit Cards) -->
+  <div id="card_selector" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <button type="button" class="card-btn" data-card-id="" data-card-name="">Débito</button>
+    {% for card in credit_cards %}
+      <button type="button" class="card-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}">{{ card.name }}</button>
+    {% endfor %}
+  </div>
+</div>
 
 <!-- {% if messages %}
   <ul class="messages">
@@ -14,20 +25,50 @@
 
 <h2>Novo lançamento</h2>
 
-<!-- Card selector nav (Débito + Credit Cards) -->
-<div style="margin: 12px 0 20px 0;">
-  <div id="card_selector" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-    <button type="button" class="card-btn" data-card-id="" data-card-name="">Débito</button>
-    {% for card in credit_cards %}
-      <button type="button" class="card-btn" data-card-id="{{ card.id }}" data-card-name="{{ card.name }}">{{ card.name }}</button>
-    {% endfor %}
-  </div>
-</div>
-
 <style>
   .transactions-layout { display: flex; gap: 24px; align-items: flex-start; }
   .transactions-layout .left-column { flex: 1 1 0; min-width: 320px; }
+  .transactions-layout .middle-column { width: 80px; flex-shrink: 0; align-self: stretch; }
   .transactions-layout .right-column { width: 360px; max-width: 42%; }
+  
+  /* Seção de informações da subcategoria (gráfico) */
+  #subcategory_info_section {
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+  }
+  
+  
+  #subcategory_chart_label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    text-align: center;
+    word-wrap: break-word;
+    line-height: 1.3;
+  }
+  
+  #subcategory_chart_container {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    position: relative;
+  }
+  
+  #subcategoryChart {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  @media (max-width: 1200px) {
+    .transactions-layout .middle-column {
+      display: none;
+    }
+  }
 
   /* Form controls full width and spacing */
   .transactions-layout form div { margin-bottom: 12px; }
@@ -79,28 +120,28 @@
 
 <div class="transactions-layout">
   <div class="left-column">
-    <form method="post" action="">
-      {% csrf_token %}
+<form method="post" action="">
+  {% csrf_token %}
       <div style="display: flex; gap: 16px;">
         <div style="flex: 1;">
-          <label for="id_date">Data:</label>
+    <label for="id_date">Data:</label>
           <input type="date" id="id_date" name="date" required value="{{ default_date }}">
-        </div>
+  </div>
 
         <div style="flex: 1;">
-          <label for="id_type">Tipo:</label>
-          <select id="id_type" name="type" required>
+    <label for="id_type">Tipo:</label>
+    <select id="id_type" name="type" required>
             <option value="EX">Despesa</option>
-            <option value="IN">Receita</option>
-          </select>
+      <option value="IN">Receita</option>
+    </select>
         </div>
-      </div>
+  </div>
 
       <div style="display: flex; gap: 16px;">
         <div style="flex: 1;">
-          <label for="id_amount">Valor:</label>
-          <input type="number" id="id_amount" name="amount" step="0.01" min="0" required>
-        </div>
+    <label for="id_amount">Valor:</label>
+    <input type="number" id="id_amount" name="amount" step="0.01" min="0" required>
+  </div>
 
         <div style="flex: 1; position: relative;">
           <label for="id_subcategory_search">Subcategoria:</label>
@@ -113,24 +154,24 @@
           <div id="subcategory_dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; border-radius: 0 0 4px 4px; max-height: 300px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
           </div>
         </div>
-      </div>
+  </div>
 
       <!-- <div>
-        <label for="id_account">Conta:</label>
-        <select id="id_account" name="account" required>
-          <option value="">-- selecione --</option>
-          {% for a in accounts %}
-            <option value="{{ a.id }}">{{ a.name }}</option>
-          {% endfor %}
-        </select>
+    <label for="id_account">Conta:</label>
+    <select id="id_account" name="account" required>
+      <option value="">-- selecione --</option>
+      {% for a in accounts %}
+        <option value="{{ a.id }}">{{ a.name }}</option>
+      {% endfor %}
+    </select>
       </div> -->
 
       <!-- credit_card select removed: selection is done via the card selector nav above -->
 
-      <div>
-        <label for="id_description">Descrição:</label>
-        <input type="text" id="id_description" name="description">
-      </div>
+  <div>
+    <label for="id_description">Descrição:</label>
+    <input type="text" id="id_description" name="description">
+  </div>
 
       <div>
         <label for="id_comment">Comentário (opcional):</label>
@@ -147,20 +188,20 @@
       </div>
 
       <fieldset id="installment_fieldset" style="margin-top: 15px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; display: none;">
-        <legend>Compra parcelada no cartão</legend>
+    <legend>Compra parcelada no cartão</legend>
 
-        <div>
-          <label>
-            <input type="checkbox" name="is_installment" id="id_is_installment" onchange="toggleInstallmentFields()">
-            Lançar como compra parcelada?
-          </label>
-        </div>
+    <div>
+      <label>
+        <input type="checkbox" name="is_installment" id="id_is_installment" onchange="toggleInstallmentFields()">
+        Lançar como compra parcelada?
+      </label>
+    </div>
 
-        <div id="installment_fields" style="margin-top: 8px; display: none;">
+    <div id="installment_fields" style="margin-top: 8px; display: none;">
           <div style="margin-bottom: 10px;">
-            <label for="id_installments">Número de parcelas:</label>
-            <input type="number" id="id_installments" name="installments" min="2" value="2">
-          </div>
+        <label for="id_installments">Número de parcelas:</label>
+        <input type="number" id="id_installments" name="installments" min="2" value="2">
+      </div>
           <div style="margin-bottom: 10px;">
             <label style="display: block; margin-bottom: 5px; font-weight: 600;">O valor informado é:</label>
             <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
@@ -171,20 +212,30 @@
               <input type="radio" name="amount_type" value="installment">
               <span>Valor de Cada Parcela</span>
             </label>
-          </div>
-          <small>
-            O sistema irá criar uma transação por parcela, em meses consecutivos.
-          </small>
-        </div>
-      </fieldset>
-
-      <div style="margin-top: 12px;">
-        <button type="submit">Salvar</button>
       </div>
+      <small>
+        O sistema irá criar uma transação por parcela, em meses consecutivos.
+      </small>
+    </div>
+  </fieldset>
 
-    </form>
+  <div style="margin-top: 12px;">
+    <button type="submit">Salvar</button>
+  </div>
+
+</form>
 
   </div>
+
+  <!-- Coluna do Meio: Gráfico de Barra Simplificado -->
+  <aside class="middle-column">
+    <div id="subcategory_info_section" style="display: none;">
+      <div id="subcategory_chart_label"></div>
+      <div id="subcategory_chart_container">
+        <canvas id="subcategoryChart" style="max-width: 100%; max-height: 100%;"></canvas>
+      </div>
+    </div>
+  </aside>
 
   <aside class="right-column">
     <!-- Filtro de Período -->
@@ -532,6 +583,11 @@
       
       // Validar o campo hidden
       hiddenInput.setCustomValidity('');
+      
+      // Atualizar informações da subcategoria
+      if (typeof updateSubcategoryInfo === 'function') {
+        updateSubcategoryInfo();
+      }
     }
 
     function highlightOption(index) {
@@ -637,6 +693,314 @@
       });
     }
   })();
+</script>
+
+<script>
+  // Variável global para armazenar a instância do gráfico
+  let subcategoryChartInstance = null;
+
+  // Função para buscar e exibir informações da subcategoria
+  function updateSubcategoryInfo() {
+    const dateInput = document.getElementById('id_date');
+    const amountInput = document.getElementById('id_amount');
+    const subcategoryInput = document.getElementById('id_subcategory');
+    const yearInput = document.getElementById('invoice_year');
+    const monthInput = document.getElementById('invoice_month');
+    const infoSection = document.getElementById('subcategory_info_section');
+    const chartCanvas = document.getElementById('subcategoryChart');
+    
+    // Verificar se campos obrigatórios estão preenchidos (data, valor e subcategoria)
+    if (!dateInput || !dateInput.value || !amountInput || !amountInput.value || !subcategoryInput || !subcategoryInput.value) {
+      infoSection.style.display = 'none';
+      if (subcategoryChartInstance) {
+        subcategoryChartInstance.destroy();
+        subcategoryChartInstance = null;
+      }
+      return;
+    }
+    
+    // Extrair ano e mês da data selecionada
+    let year, month;
+    if (dateInput.value) {
+      const dateParts = dateInput.value.split('-');
+      year = parseInt(dateParts[0]);
+      month = parseInt(dateParts[1]);
+    } else if (yearInput && yearInput.value && monthInput && monthInput.value) {
+      // Fallback: usar campos de filtro se a data não estiver preenchida
+      year = parseInt(yearInput.value);
+      month = parseInt(monthInput.value);
+    } else {
+      infoSection.style.display = 'none';
+      if (subcategoryChartInstance) {
+        subcategoryChartInstance.destroy();
+        subcategoryChartInstance = null;
+      }
+      return;
+    }
+    
+    const subcategoryId = subcategoryInput.value;
+    
+    // Fazer requisição AJAX
+    fetch(`{% url 'finance:subcategory_budget_info' %}?subcategory_id=${subcategoryId}&year=${year}&month=${month}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Calcular valores e porcentagens
+          const budget = data.budget || 0;
+          const spent = Math.abs(data.spent);
+          
+          // Obter valor do campo de valor (sempre usar valor absoluto para o gráfico)
+          const amountValue = Math.abs(parseFloat(amountInput.value) || 0);
+          
+          // Calcular novo gasto (gasto atual + valor do lançamento)
+          const newSpentTotal = spent + amountValue;
+          const newPercentage = budget > 0 ? (newSpentTotal / budget) * 100 : 0;
+          
+          // Cores para a barra do gasto atual (barra inferior)
+          let spentBarColor, spentBarBorderColor;
+          const spentPercentage = budget > 0 ? (spent / budget) * 100 : 0;
+          if (budget === 0 && spent > 0) {
+            spentBarColor = 'rgba(198, 40, 40, 0.7)';
+            spentBarBorderColor = 'rgba(198, 40, 40, 1)';
+          } else if (spentPercentage < 85) {
+            spentBarColor = 'rgba(33, 150, 243, 0.7)';
+            spentBarBorderColor = 'rgba(33, 150, 243, 1)';
+          } else if (spentPercentage <= 100) {
+            spentBarColor = 'rgba(255, 152, 0, 0.7)';
+            spentBarBorderColor = 'rgba(255, 152, 0, 1)';
+          } else {
+            spentBarColor = 'rgba(198, 40, 40, 0.7)';
+            spentBarBorderColor = 'rgba(198, 40, 40, 1)';
+          }
+          
+          // Cores para a barra do novo valor (barra superior empilhada)
+          // Usar uma versão mais clara/transparente para diferenciar
+          let newValueBarColor, newValueBarBorderColor;
+          if (budget === 0 && newSpentTotal > 0) {
+            newValueBarColor = 'rgba(198, 40, 40, 0.5)';
+            newValueBarBorderColor = 'rgba(198, 40, 40, 0.8)';
+          } else if (newPercentage < 85) {
+            newValueBarColor = 'rgba(33, 150, 243, 0.5)';
+            newValueBarBorderColor = 'rgba(33, 150, 243, 0.8)';
+          } else if (newPercentage <= 100) {
+            newValueBarColor = 'rgba(255, 152, 0, 0.5)';
+            newValueBarBorderColor = 'rgba(255, 152, 0, 0.8)';
+          } else {
+            newValueBarColor = 'rgba(198, 40, 40, 0.5)';
+            newValueBarBorderColor = 'rgba(198, 40, 40, 0.8)';
+          }
+          
+          // Criar ou atualizar o gráfico
+          if (typeof Chart !== 'undefined' && chartCanvas) {
+            const ctx = chartCanvas.getContext('2d');
+            
+            // Destruir gráfico existente se houver
+            if (subcategoryChartInstance) {
+              subcategoryChartInstance.destroy();
+            }
+            
+            // Plugin para desenhar linha de referência e porcentagem
+            const customPlugin = {
+              id: 'customElements',
+              afterDatasetsDraw: function(chart) {
+                const ctx = chart.ctx;
+                const meta0 = chart.getDatasetMeta(0); // Barra do gasto atual
+                const meta1 = chart.getDatasetMeta(1); // Barra do novo valor
+                const yScale = chart.scales.y;
+                const currentBudget = budget;
+                const currentNewSpentTotal = newSpentTotal;
+                const currentNewPercentage = newPercentage;
+                const currentNewValueBarBorderColor = newValueBarBorderColor;
+                
+                ctx.save();
+                
+                // Desenhar linha de referência para orçado
+                if (currentBudget > 0) {
+                  const budgetY = yScale.getPixelForValue(currentBudget);
+                  const bar = meta0.data[0];
+                  const barLeft = bar.x - bar.width / 2;
+                  const barRight = bar.x + bar.width / 2;
+                  
+                  // Linha mais destacada - cor mais vibrante e espessura maior
+                  ctx.strokeStyle = 'rgba(46, 125, 50, 1)'; // Opacidade total
+                  ctx.lineWidth = 4; // Espessura maior
+                  ctx.setLineDash([5, 3]); // Traços mais longos e espaçados
+                  ctx.beginPath();
+                  ctx.moveTo(barLeft, budgetY);
+                  ctx.lineTo(barRight, budgetY);
+                  ctx.stroke();
+                  ctx.setLineDash([]);
+                }
+                
+                // Adicionar porcentagem no topo da barra empilhada (baseado no novo gasto total)
+                if (currentNewSpentTotal > 0 && meta1.data[0]) {
+                  const bar = meta1.data[0];
+                  const x = bar.x;
+                  const y = bar.y;
+                  let text;
+                  
+                  if (currentBudget === 0) {
+                    text = 'N/A';
+                  } else {
+                    text = currentNewPercentage.toFixed(1) + '%';
+                  }
+                  
+                  ctx.font = 'bold 11px Arial';
+                  ctx.textAlign = 'center';
+                  ctx.textBaseline = 'bottom';
+                  ctx.fillStyle = currentNewValueBarBorderColor;
+                  ctx.fillText(text, x, y - 5);
+                }
+                
+                ctx.restore();
+              }
+            };
+            
+            subcategoryChartInstance = new Chart(ctx, {
+              type: 'bar',
+              plugins: [customPlugin],
+              data: {
+                labels: [''],
+                datasets: [
+                  {
+                    label: 'Gasto Atual',
+                    data: [spent],
+                    backgroundColor: spentBarColor,
+                    borderColor: spentBarBorderColor,
+                    borderWidth: 2,
+                    stack: 'gasto' // Empilhar com o próximo dataset
+                  },
+                  {
+                    label: 'Novo Valor',
+                    data: [amountValue],
+                    backgroundColor: newValueBarColor,
+                    borderColor: newValueBarBorderColor,
+                    borderWidth: 2,
+                    stack: 'gasto' // Empilhar com o dataset anterior
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    max: Math.max(newSpentTotal, budget) > 0 ? Math.max(newSpentTotal, budget) * 1.1 : 100, // Sempre mostrar pelo menos 10% acima do maior valor
+                    ticks: {
+                      callback: function(value) {
+                        return 'R$ ' + value.toFixed(0);
+                      },
+                      font: {
+                        size: 9
+                      }
+                    },
+                    stacked: true // Habilitar empilhamento no eixo Y
+                  },
+                  x: {
+                    display: false, // Ocultar eixo X pois só temos uma barra
+                    stacked: true // Habilitar empilhamento no eixo X
+                  }
+                },
+                plugins: {
+                  legend: {
+                    display: false
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: function(context) {
+                        const datasetLabel = context.dataset.label || '';
+                        const value = context.parsed.y;
+                        return `${datasetLabel}: R$ ${value.toFixed(2).replace('.', ',')}`;
+                      },
+                      afterLabel: function(context) {
+                        // Mostrar informações adicionais apenas no último dataset (barra superior)
+                        if (context.datasetIndex === 1) {
+                          const tooltipBudget = budget;
+                          const tooltipNewSpentTotal = newSpentTotal;
+                          const tooltipNewPercentage = tooltipBudget > 0 ? (tooltipNewSpentTotal / tooltipBudget) * 100 : 0;
+                          let tooltipItems = [
+                            `Total: R$ ${tooltipNewSpentTotal.toFixed(2).replace('.', ',')}`,
+                            `Orçado: R$ ${tooltipBudget.toFixed(2).replace('.', ',')}`
+                          ];
+                          
+                          if (tooltipBudget > 0) {
+                            const difference = tooltipBudget - tooltipNewSpentTotal;
+                            tooltipItems.push(`Diferença: R$ ${difference.toFixed(2).replace('.', ',')}`);
+                            tooltipItems.push(`Porcentagem: ${tooltipNewPercentage.toFixed(1)}%`);
+                          }
+                          
+                          return tooltipItems;
+                        }
+                        return [];
+                      }
+                    }
+                  }
+                }
+              }
+            });
+          }
+          
+          // Atualizar legenda com o nome da subcategoria
+          const chartLabel = document.getElementById('subcategory_chart_label');
+          if (chartLabel) {
+            chartLabel.textContent = data.subcategory_name;
+          }
+          
+          // Exibir a seção
+          infoSection.style.display = 'flex';
+        } else {
+          infoSection.style.display = 'none';
+          if (subcategoryChartInstance) {
+            subcategoryChartInstance.destroy();
+            subcategoryChartInstance = null;
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Erro ao buscar informações da subcategoria:', error);
+        infoSection.style.display = 'none';
+        if (subcategoryChartInstance) {
+          subcategoryChartInstance.destroy();
+          subcategoryChartInstance = null;
+        }
+      });
+  }
+  
+  // Adicionar event listeners aos campos
+  document.addEventListener('DOMContentLoaded', function() {
+    const dateInput = document.getElementById('id_date');
+    const amountInput = document.getElementById('id_amount');
+    const subcategoryInput = document.getElementById('id_subcategory');
+    const typeSelect = document.getElementById('id_type');
+    
+    if (dateInput) {
+      dateInput.addEventListener('change', updateSubcategoryInfo);
+      dateInput.addEventListener('input', updateSubcategoryInfo);
+    }
+    
+    if (amountInput) {
+      amountInput.addEventListener('input', updateSubcategoryInfo);
+    }
+    
+    if (typeSelect) {
+      typeSelect.addEventListener('change', updateSubcategoryInfo);
+    }
+    
+    if (subcategoryInput) {
+      // Monitorar mudanças no campo hidden usando setInterval (mais confiável que MutationObserver)
+      let lastValue = subcategoryInput.value;
+      setInterval(function() {
+        if (subcategoryInput.value !== lastValue) {
+          lastValue = subcategoryInput.value;
+          updateSubcategoryInfo();
+        }
+      }, 200);
+    }
+    
+    // Verificar se já há valores preenchidos ao carregar
+    setTimeout(updateSubcategoryInfo, 300);
+  });
 </script>
 
 <script>
@@ -842,5 +1206,8 @@
     }
   })();
 </script>
+
+<!-- Chart.js para o gráfico de subcategoria -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 {% endblock %}

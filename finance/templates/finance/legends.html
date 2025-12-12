@@ -1,0 +1,300 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Legendas</h1>
+
+<style>
+  .legends-container {
+    background-color: #f5f5f5;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+  }
+  
+  .search-form {
+    margin-bottom: 20px;
+  }
+  
+  .search-form input {
+    width: 300px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  
+  .search-form button {
+    padding: 8px 16px;
+    background-color: #2196F3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 10px;
+  }
+  
+  .create-form {
+    background-color: #e8f5e9;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 1px solid #4caf50;
+  }
+  
+  .create-form h3 {
+    margin-top: 0;
+    color: #2e7d32;
+  }
+  
+  .form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+    align-items: flex-end;
+  }
+  
+  .form-group {
+    flex: 1;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+  }
+  
+  .form-group input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    box-sizing: border-box;
+  }
+  
+  .create-form button {
+    padding: 8px 16px;
+    background-color: #4caf50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+  }
+  
+  table th,
+  table td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #ddd;
+  }
+  
+  table th {
+    background-color: #f0f0f0;
+    font-weight: 600;
+  }
+  
+  table tbody tr:hover {
+    background-color: #f9f9f9;
+  }
+  
+  .delete-link {
+    color: #c62828;
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: inherit;
+    font-family: inherit;
+  }
+  
+  /* Modal de Edição */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+  }
+  
+  .modal-content {
+    background-color: #fefefe;
+    margin: 10% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 500px;
+    border-radius: 8px;
+  }
+  
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .close {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  
+  .close:hover,
+  .close:focus {
+    color: #000;
+  }
+  
+  .no-results {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+</style>
+
+<!-- Formulário de Busca -->
+<div class="search-form">
+  <form method="get" action="">
+    <label for="search">Buscar por descrição:</label>
+    <input type="text" id="search" name="search" value="{{ search_query }}" placeholder="Digite a descrição do cartão de crédito...">
+    <button type="submit">Buscar</button>
+    {% if search_query %}
+      <a href="{% url 'finance:legends' %}" style="margin-left: 10px; padding: 8px 16px; background-color: #666; color: white; border-radius: 4px; text-decoration: none; display: inline-block;">Limpar</a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Formulário de Criação -->
+<div class="create-form">
+  <h3>Criar Nova Legenda</h3>
+  <form method="post" action="">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <div class="form-row">
+      <div class="form-group">
+        <label for="description">Descrição no Cartão de Crédito:</label>
+        <input type="text" id="description" name="description" required placeholder="Ex: AMAZON MARKETPLACE">
+      </div>
+      <div class="form-group">
+        <label for="translation">Tradução:</label>
+        <input type="text" id="translation" name="translation" required placeholder="Ex: Compra na Amazon">
+      </div>
+      <div class="form-group">
+        <button type="submit">Criar Legenda</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Tabela de Legendas -->
+{% if legends %}
+  <table border="1" cellspacing="0" cellpadding="4">
+    <thead>
+      <tr>
+        <th>Descrição no Cartão de Crédito</th>
+        <th>Tradução</th>
+        <th style="width: 120px;">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for legend in legends %}
+        <tr>
+          <td>{{ legend.description }}</td>
+          <td>{{ legend.translation }}</td>
+          <td>
+            <a href="#" onclick="event.preventDefault(); openEditModal({{ legend.id }}, '{{ legend.description|escapejs }}', '{{ legend.translation|escapejs }}');" style="margin-right: 8px;">Editar</a>
+            <form method="post" action="" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja deletar esta legenda?');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="legend_id" value="{{ legend.id }}">
+              {% if search_query %}
+                <input type="hidden" name="search" value="{{ search_query }}">
+              {% endif %}
+              <button type="submit" class="delete-link">Deletar</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <div class="no-results">
+    {% if search_query %}
+      <p>Nenhuma legenda encontrada para "{{ search_query }}".</p>
+    {% else %}
+      <p>Nenhuma legenda cadastrada. Crie uma nova legenda acima.</p>
+    {% endif %}
+  </div>
+{% endif %}
+
+<!-- Modal de Edição -->
+<div id="editModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 style="margin: 0;">Editar Legenda</h2>
+      <span class="close" onclick="closeEditModal()">&times;</span>
+    </div>
+    <form method="post" action="" id="editForm">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="edit">
+      <input type="hidden" name="legend_id" id="edit_legend_id">
+      {% if search_query %}
+        <input type="hidden" name="search" value="{{ search_query }}">
+      {% endif %}
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="edit_description">Descrição no Cartão de Crédito:</label>
+        <input type="text" id="edit_description" name="description" required style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
+      </div>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="edit_translation">Tradução:</label>
+        <input type="text" id="edit_translation" name="translation" required style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
+      </div>
+      <div style="text-align: right;">
+        <button type="button" onclick="closeEditModal()" style="padding: 8px 16px; background-color: #666; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">Cancelar</button>
+        <button type="submit" style="padding: 8px 16px; background-color: #FF9800; color: white; border: none; border-radius: 4px; cursor: pointer;">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openEditModal(legendId, description, translation) {
+  document.getElementById('edit_legend_id').value = legendId;
+  document.getElementById('edit_description').value = description;
+  document.getElementById('edit_translation').value = translation;
+  document.getElementById('editModal').style.display = 'block';
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+  document.getElementById('editForm').reset();
+}
+
+// Fechar modal ao clicar fora dele
+window.onclick = function(event) {
+  const modal = document.getElementById('editModal');
+  if (event.target == modal) {
+    closeEditModal();
+  }
+}
+</script>
+
+{% endblock %}
+

@@ -12,8 +12,9 @@ from django.db.models.functions import Coalesce
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.contrib import messages
+from django.http import JsonResponse
 
-from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, CreditCard, ActionLog, BudgetTemplate, BudgetTemplateItem
+from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, CreditCard, ActionLog, BudgetTemplate, BudgetTemplateItem, Legend
 
 
 def log_action(user, action, details=''):
@@ -1533,8 +1534,29 @@ def all_transactions_view(request):
     if filter_owner_tag in [Transaction.OWNER_THI, Transaction.OWNER_THA]:
         transactions = transactions.filter(owner_tag=filter_owner_tag)
     
+    filter_description = request.GET.get('description', '').strip()
+    if filter_description:
+        transactions = transactions.filter(description__icontains=filter_description)
+    
     # Ordenar pelo dia de lançamento (mais recentes primeiro)
     transactions = transactions.order_by('-date', '-id')
+    
+    # Calcular total (sobre todas as transações filtradas, não apenas a página)
+    from django.db.models import Sum, Case, When, F, Value, DecimalField
+    from decimal import Decimal
+    total_signed_amount = transactions.aggregate(
+        total=Coalesce(
+            Sum(
+                Case(
+                    When(type=Transaction.TYPE_EXPENSE, then=F('amount') * Value(-1)),
+                    default=F('amount'),
+                    output_field=DecimalField(max_digits=14, decimal_places=2),
+                )
+            ),
+            Value(0),
+            output_field=DecimalField(max_digits=14, decimal_places=2),
+        )
+    )['total'] or Decimal('0')
     
     # Paginação: 100 itens por página
     paginator = Paginator(transactions, 100)
@@ -1563,6 +1585,8 @@ def all_transactions_view(request):
         filter_params['installment'] = filter_installment
     if filter_owner_tag:
         filter_params['owner_tag'] = filter_owner_tag
+    if filter_description:
+        filter_params['description'] = filter_description
     
     # Construir URL completa e codificar para uso como parâmetro next
     base_url = reverse('finance:all_transactions')
@@ -1590,8 +1614,10 @@ def all_transactions_view(request):
         'filter_subcategory': filter_subcategory,
         'filter_installment': filter_installment,
         'filter_owner_tag': filter_owner_tag,
+        'filter_description': filter_description,
         'return_url': return_url,
         'return_url_plain': return_url_plain,
+        'total_signed_amount': total_signed_amount,
     }
     return render(request, 'finance/all_transactions.html', context)
 
@@ -2142,3 +2168,167 @@ def budget_template_save_current_view(request):
     
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def legends_view(request):
+    """Página de gerenciamento de legendas para traduzir descrições de cartão de crédito."""
+    user = request.user
+    
+    # Buscar legendas do usuário
+    search_query = request.GET.get('search', '').strip()
+    legends = Legend.objects.filter(user=user)
+    
+    if search_query:
+        legends = legends.filter(description__icontains=search_query)
+    
+    legends = legends.order_by('description')
+    
+    # Processar POST (criar ou deletar)
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'create':
+            description = request.POST.get('description', '').strip()
+            translation = request.POST.get('translation', '').strip()
+            
+            if description and translation:
+                try:
+                    legend = Legend.objects.create(
+                        user=user,
+                        description=description,
+                        translation=translation
+                    )
+                    log_action(
+                        user,
+                        f"Criou legenda: {description} → {translation}",
+                        f"Legenda ID: {legend.id}"
+                    )
+                    messages.success(request, f'Legenda criada com sucesso!')
+                except Exception as e:
+                    messages.error(request, f'Erro ao criar legenda: {str(e)}')
+            else:
+                messages.error(request, 'Por favor, preencha ambos os campos.')
+            
+            return redirect('finance:legends')
+        
+        elif action == 'edit':
+            legend_id = request.POST.get('legend_id')
+            description = request.POST.get('description', '').strip()
+            translation = request.POST.get('translation', '').strip()
+            search_param = request.POST.get('search', '').strip()
+            
+            if description and translation:
+                try:
+                    legend = Legend.objects.get(id=legend_id, user=user)
+                    old_description = legend.description
+                    old_translation = legend.translation
+                    legend.description = description
+                    legend.translation = translation
+                    legend.save()
+                    log_action(
+                        user,
+                        f"Editou legenda: {old_description} → {description} / {old_translation} → {translation}",
+                        f"Legenda ID: {legend_id}"
+                    )
+                    messages.success(request, 'Legenda editada com sucesso!')
+                except Legend.DoesNotExist:
+                    messages.error(request, 'Legenda não encontrada.')
+                except Exception as e:
+                    messages.error(request, f'Erro ao editar legenda: {str(e)}')
+            else:
+                messages.error(request, 'Por favor, preencha ambos os campos.')
+            
+            # Preservar busca na URL ao redirecionar
+            if search_param:
+                from urllib.parse import urlencode
+                return redirect(f"{reverse('finance:legends')}?{urlencode({'search': search_param})}")
+            return redirect('finance:legends')
+        
+        elif action == 'delete':
+            legend_id = request.POST.get('legend_id')
+            search_param = request.POST.get('search', '').strip()
+            try:
+                legend = Legend.objects.get(id=legend_id, user=user)
+                description = legend.description
+                translation = legend.translation
+                legend.delete()
+                log_action(
+                    user,
+                    f"Deletou legenda: {description} → {translation}",
+                    f"Legenda ID: {legend_id}"
+                )
+                messages.success(request, 'Legenda deletada com sucesso!')
+            except Legend.DoesNotExist:
+                messages.error(request, 'Legenda não encontrada.')
+            except Exception as e:
+                messages.error(request, f'Erro ao deletar legenda: {str(e)}')
+            
+            # Preservar busca na URL ao redirecionar
+            if search_param:
+                from urllib.parse import urlencode
+                return redirect(f"{reverse('finance:legends')}?{urlencode({'search': search_param})}")
+            return redirect('finance:legends')
+    
+    context = {
+        'legends': legends,
+        'search_query': search_query,
+    }
+    return render(request, 'finance/legends.html', context)
+
+
+@login_required
+def subcategory_budget_info_view(request):
+    """Retorna informações de gasto/orçado/diferença de uma subcategoria em um mês/ano específico."""
+    user = request.user
+    
+    subcategory_id = request.GET.get('subcategory_id')
+    year = request.GET.get('year')
+    month = request.GET.get('month')
+    
+    if not subcategory_id or not year or not month:
+        return JsonResponse({
+            'success': False,
+            'error': 'Parâmetros inválidos'
+        }, status=400)
+    
+    try:
+        subcategory = Subcategory.objects.get(id=subcategory_id, user=user)
+        year = int(year)
+        month = int(month)
+    except (Subcategory.DoesNotExist, ValueError):
+        return JsonResponse({
+            'success': False,
+            'error': 'Subcategoria não encontrada ou parâmetros inválidos'
+        }, status=404)
+    
+    # Calcular valor gasto
+    spent = Transaction.objects.filter(
+        subcategory=subcategory,
+        payment_date__year=year,
+        payment_date__month=month
+    ).aggregate(
+        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+    )['total'] or Decimal('0')
+    
+    # Calcular valor orçado
+    budget = MonthlyBudget.objects.filter(
+        subcategory=subcategory,
+        year=year,
+        month=month
+    ).aggregate(
+        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+    )['total'] or Decimal('0')
+    
+    # Calcular diferença
+    difference = budget - spent
+    
+    return JsonResponse({
+        'success': True,
+        'subcategory_name': subcategory.name,
+        'spent': float(spent),
+        'budget': float(budget),
+        'difference': float(difference),
+        'year': year,
+        'month': month
+    })
