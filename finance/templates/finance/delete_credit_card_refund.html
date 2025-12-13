@@ -1,0 +1,51 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Deletar Estorno de Cartão de Crédito</h1>
+
+{% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<div style="background-color: #fff3cd; border: 1px solid #ffc107; padding: 20px; border-radius: 6px; max-width: 600px; margin-bottom: 20px;">
+  <p><strong>Você tem certeza que deseja deletar este estorno?</strong></p>
+  <p>Esta ação não pode ser desfeita.</p>
+</div>
+
+<div style="background-color: #f5f5f5; padding: 20px; border-radius: 6px; max-width: 600px;">
+  <table style="width: 100%; margin-bottom: 20px;">
+    <tr>
+      <td style="padding: 8px; font-weight: bold;">Cartão:</td>
+      <td style="padding: 8px;">{{ refund.credit_card.name }}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; font-weight: bold;">Valor:</td>
+      <td style="padding: 8px; color: #c62828; font-weight: bold;">R$ {{ refund.amount|floatformat:2 }}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; font-weight: bold;">Data do Estorno:</td>
+      <td style="padding: 8px;">{{ refund.refund_date|date:"d/m/Y" }}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; font-weight: bold;">Fatura:</td>
+      <td style="padding: 8px;">{{ refund.invoice_month }}/{{ refund.invoice_year }}</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; font-weight: bold;">Descrição:</td>
+      <td style="padding: 8px;">{{ refund.description }}</td>
+    </tr>
+  </table>
+  
+  <form method="post" action="">
+    {% csrf_token %}
+    <button type="submit" style="padding: 10px 20px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Confirmar Exclusão</button>
+    <a href="{% url 'finance:credit_card_refunds' %}" style="padding: 10px 20px; background-color: #999; color: white; text-decoration: none; border-radius: 4px; margin-left: 10px; display: inline-block;">Cancelar</a>
+  </form>
+</div>
+
+{% endblock %}

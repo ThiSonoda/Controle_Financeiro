@@ -54,6 +54,28 @@ class CreditCard(models.Model):
     def __str__(self):
         return self.name
 
+
+class CreditCardRefund(models.Model):
+    """Modelo para armazenar estornos de cartão de crédito."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    credit_card = models.ForeignKey(CreditCard, on_delete=models.CASCADE, related_name='refunds')
+    amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do estorno")
+    description = models.TextField(help_text="Descrição do estorno")
+    refund_date = models.DateField(help_text="Data do estorno")
+    invoice_year = models.PositiveSmallIntegerField(help_text="Ano da fatura")
+    invoice_month = models.PositiveSmallIntegerField(help_text="Mês da fatura")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-refund_date', '-created_at']
+        verbose_name = 'Estorno de Cartão'
+        verbose_name_plural = 'Estornos de Cartão'
+
+    def __str__(self):
+        return f"{self.credit_card.name} - R$ {self.amount} - {self.invoice_month}/{self.invoice_year}"
+
+
 class Transaction(models.Model):
     TYPE_INCOME = 'IN'
     TYPE_EXPENSE = 'EX'
@@ -133,9 +155,26 @@ class MonthlyBudget(models.Model):
     month = models.PositiveSmallIntegerField()
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     comment = models.TextField(blank=True, null=True, help_text="Comentário opcional sobre o orçamento")
+    use_items = models.BooleanField(default=False, help_text="Se True, o valor será calculado pela soma dos itens")
 
     class Meta:
         unique_together = ('user', 'subcategory', 'year', 'month')
+
+
+class BudgetItem(models.Model):
+    """Item individual que compõe um orçamento mensal."""
+    budget = models.ForeignKey(MonthlyBudget, on_delete=models.CASCADE, related_name='items')
+    description = models.CharField(max_length=255, help_text="Descrição do item")
+    amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do item")
+    order = models.PositiveSmallIntegerField(default=0, help_text="Ordem de exibição do item")
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Item de Orçamento'
+        verbose_name_plural = 'Itens de Orçamento'
+
+    def __str__(self):
+        return f"{self.budget.subcategory.name} - {self.description}: R$ {self.amount}"
 
 
 class ActionLog(models.Model):
@@ -178,6 +217,7 @@ class BudgetTemplateItem(models.Model):
     subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do orçamento para esta subcategoria")
     comment = models.TextField(blank=True, null=True, help_text="Comentário opcional sobre o orçamento desta subcategoria")
+    use_items = models.BooleanField(default=False, help_text="Se True, o valor será calculado pela soma dos itens")
 
     class Meta:
         unique_together = ('template', 'subcategory')
@@ -186,6 +226,22 @@ class BudgetTemplateItem(models.Model):
 
     def __str__(self):
         return f"{self.template.name} - {self.subcategory.name}: R$ {self.amount}"
+
+
+class BudgetTemplateItemItem(models.Model):
+    """Item individual que compõe um item de template de orçamento."""
+    template_item = models.ForeignKey(BudgetTemplateItem, on_delete=models.CASCADE, related_name='items')
+    description = models.CharField(max_length=255, help_text="Descrição do item")
+    amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do item")
+    order = models.PositiveSmallIntegerField(default=0, help_text="Ordem de exibição do item")
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Item do Item de Template'
+        verbose_name_plural = 'Itens do Item de Template'
+
+    def __str__(self):
+        return f"{self.template_item.subcategory.name} - {self.description}: R$ {self.amount}"
 
 
 class Legend(models.Model):

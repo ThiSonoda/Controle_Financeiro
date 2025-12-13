@@ -1,7 +1,83 @@
 {% extends "finance/base.html" %}
 {% load static %}
+{% load finance_extras %}
 
 {% block content %}
+<style>
+  /* Tooltip para comentário */
+  .comment-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .comment-icon:hover {
+    border-color: #666 !important;
+    color: #666 !important;
+  }
+  
+  .comment-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px 12px;
+    position: absolute;
+    z-index: 1000;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 400px;
+    min-width: 200px;
+    font-family: "Inter", Arial, sans-serif;
+    font-size: 12px;
+    font-weight: normal;
+    line-height: 1.4;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: opacity 0.3s, visibility 0.3s;
+    pointer-events: none;
+    display: block;
+  }
+  
+  .comment-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+  }
+  
+  /* Tooltip abaixo (para primeiras linhas) */
+  .comment-tooltip.tooltip-below {
+    bottom: auto;
+    top: 125%;
+  }
+  
+  .comment-tooltip.tooltip-below::after {
+    top: auto;
+    bottom: 100%;
+    border-color: transparent transparent #333 transparent;
+  }
+  
+  .comment-icon:hover .comment-tooltip {
+    visibility: visible;
+    opacity: 1;
+  }
+</style>
+
 <h1>Relatório - Gasto x Orçado</h1>
 
 <form method="get" action="">
@@ -135,7 +211,26 @@
   <!-- Tabela de Receitas -->
   {% if income_categories %}
     <h3 style="margin-top: 20px; margin-bottom: 10px;">Receitas</h3>
-    <table border="1" cellspacing="0" cellpadding="4" style="margin-bottom: 30px;">
+    <table border="1" cellspacing="0" cellpadding="4" style="margin-bottom: 30px; width: 100%; table-layout: fixed;">
+      <colgroup>
+        {% if is_edit_mode %}
+          <col style="width: 12%;">
+          <col style="width: 12%;">
+          <col style="width: 30%;">
+          <col style="width: 18%;">
+          <col style="width: 12%;">
+          <col style="width: 10%;">
+          <col style="width: 6%;">
+        {% else %}
+          <col style="width: 16%;">
+          <col style="width: 16%;">
+          <col style="width: 18%;">
+          <col style="width: 18%;">
+          <col style="width: 18%;">
+          <col style="width: 10%;">
+          <col style="width: 4%;">
+        {% endif %}
+      </colgroup>
       <thead>
         <tr>
           <th>Categoria</th>
@@ -161,21 +256,116 @@
               <td>{{ subcat.subcategory_name }}</td>
               <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget|default:0 }}">
                 {% if is_edit_mode %}
-                  <input type="number" class="budget-input" data-category-type="income" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" oninput="updateEditModeSummary()" style="width: 100%; box-sizing: border-box;">
+                  <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer;">
+                      <input type="checkbox" 
+                             class="use-items-checkbox" 
+                             data-subcategory-id="{{ subcat.subcategory_id }}"
+                             {% if subcat.use_items %}checked{% endif %}
+                             onchange="toggleBudgetMode({{ subcat.subcategory_id }})"
+                             style="width: auto; margin: 0;">
+                      <span>Usar itens</span>
+                    </label>
+                  </div>
+                  <div id="budget-direct-{{ subcat.subcategory_id }}" style="{% if subcat.use_items %}display: none;{% endif %}">
+                    <input type="number" 
+                           class="budget-input" 
+                           data-category-type="income" 
+                           name="budget_{{ subcat.subcategory_id }}"
+                           step="0.01" 
+                           min="0" 
+                           value="{{ subcat.budget_str|default:'0.00' }}" 
+                           oninput="updateEditModeSummary()" 
+                           style="width: 100%; box-sizing: border-box;">
+                  </div>
+                  <div id="budget-items-{{ subcat.subcategory_id }}" data-category-type="income" style="{% if not subcat.use_items %}display: none;{% endif %}">
+                    <input type="hidden" name="use_items_{{ subcat.subcategory_id }}" value="{% if subcat.use_items %}on{% endif %}">
+                    <div id="items-container-{{ subcat.subcategory_id }}" class="items-container">
+                      {% for item in subcat.budget_items %}
+                        <div class="budget-item-row" style="display: flex; gap: 5px; margin-bottom: 5px; align-items: center;">
+                          <input type="text" 
+                                 name="item_desc_{{ subcat.subcategory_id }}_{{ forloop.counter0 }}" 
+                                 value="{{ item.description }}" 
+                                 placeholder="Descrição" 
+                                 style="flex: 1; padding: 4px; box-sizing: border-box; font-size: 12px;">
+                          <input type="number" 
+                                 name="item_value_{{ subcat.subcategory_id }}_{{ forloop.counter0 }}" 
+                                 value="{{ item.amount|decimal_input }}" 
+                                 step="0.01" 
+                                 min="0" 
+                                 placeholder="Valor" 
+                                 oninput="updateItemsTotal({{ subcat.subcategory_id }})"
+                                 style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
+                          <button type="button" 
+                                  onclick="removeBudgetItem(this, {{ subcat.subcategory_id }})" 
+                                  style="padding: 4px 8px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>
+                        </div>
+                      {% endfor %}
+                    </div>
+                    <button type="button" 
+                            onclick="addBudgetItem({{ subcat.subcategory_id }})" 
+                            style="padding: 4px 8px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px;">+ Adicionar Item</button>
+                    <div style="margin-top: 5px; font-size: 16px; font-weight: bold;">
+                      Total: R$ <span id="items-total-{{ subcat.subcategory_id }}" style="font-size: 16px;">0.00</span>
+                    </div>
+                  </div>
                 {% else %}
-                  <span class="budget-text">R$ {{ subcat.budget|default:0|floatformat:2 }}</span>
+                  <span class="budget-text">
+                    R$ {{ subcat.budget|default:0|floatformat:2 }}
+                    {% if subcat.use_items and subcat.budget_items|length > 0 %}
+                      <button type="button" 
+                              onclick="toggleBudgetItems({{ subcat.subcategory_id }})" 
+                              style="margin-left: 5px; padding: 2px 6px; background: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        Ver itens
+                      </button>
+                      <div id="budget-items-display-{{ subcat.subcategory_id }}" style="display: none; margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                          <thead>
+                            <tr style="border-bottom: 1px solid #ddd;">
+                              <th style="text-align: left; padding: 4px;">Descrição</th>
+                              <th style="text-align: right; padding: 4px;">Valor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {% for item in subcat.budget_items %}
+                              <tr>
+                                <td style="padding: 4px;">{{ item.description }}</td>
+                                <td style="text-align: right; padding: 4px;">R$ {{ item.amount|floatformat:2 }}</td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    {% endif %}
+                    {% if subcat.budget_comment and subcat.budget_comment|length > 0 %}
+                      <span class="comment-icon" style="cursor: pointer; margin-left: 5px; vertical-align: middle; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #999; color: #999; font-size: 8px; font-weight: bold; font-style: italic; font-family: serif; line-height: 1;">
+                        i
+                        <span class="comment-tooltip">{{ subcat.budget_comment|escape }}</span>
+                      </span>
+                    {% endif %}
+                  </span>
                 {% endif %}
               </td>
               {% if is_edit_mode %}
               <td>
                 <textarea class="budget-comment-input" 
                           data-subcategory-id="{{ subcat.subcategory_id }}"
-                          rows="2" 
+                          rows="4" 
                           placeholder="Comentário opcional..."
-                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 16px;">{{ subcat.budget_comment|default:'' }}</textarea>
+                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 14px;">{{ subcat.budget_comment|default:'' }}</textarea>
               </td>
               {% endif %}
-              <td>R$ {{ subcat.spent|floatformat:2 }}</td>
+              <td>
+                {% if subcat.spent and subcat.spent != 0.0 %}
+                  <a href="javascript:void(0);" 
+                     onclick="showSubcategoryTransactions({{ subcat.subcategory_id }}, {{ year }}, {{ month }}, '{{ subcat.subcategory_name|escapejs }}')"
+                     style="color: #1976d2; text-decoration: underline; cursor: pointer;">
+                    R$ {{ subcat.spent|floatformat:2 }}
+                  </a>
+                {% else %}
+                  R$ {{ subcat.spent|floatformat:2 }}
+                {% endif %}
+              </td>
               <td>R$ {{ subcat.diff|floatformat:2 }}</td>
               <td>
                 {% if subcat.percent %}
@@ -212,7 +402,26 @@
   <!-- Tabela de Despesas -->
   {% if expense_categories %}
     <h3 style="margin-top: 20px; margin-bottom: 10px;">Despesas</h3>
-  <table border="1" cellspacing="0" cellpadding="4">
+  <table border="1" cellspacing="0" cellpadding="4" style="width: 100%; table-layout: fixed;">
+    <colgroup>
+      {% if is_edit_mode %}
+        <col style="width: 12%;">
+        <col style="width: 12%;">
+        <col style="width: 30%;">
+        <col style="width: 18%;">
+        <col style="width: 12%;">
+        <col style="width: 10%;">
+        <col style="width: 6%;">
+      {% else %}
+        <col style="width: 16%;">
+        <col style="width: 16%;">
+        <col style="width: 18%;">
+        <col style="width: 18%;">
+        <col style="width: 18%;">
+        <col style="width: 10%;">
+        <col style="width: 4%;">
+      {% endif %}
+    </colgroup>
     <thead>
       <tr>
         <th>Categoria</th>
@@ -238,21 +447,116 @@
               <td>{{ subcat.subcategory_name }}</td>
               <td class="budget-cell" data-subcategory-id="{{ subcat.subcategory_id }}" data-budget-value="{{ subcat.budget|default:0 }}">
                 {% if is_edit_mode %}
-                  <input type="number" class="budget-input" data-category-type="expense" step="0.01" min="0" value="{{ subcat.budget_str|default:'0.00' }}" oninput="updateEditModeSummary()" style="width: 100%; box-sizing: border-box;">
+                  <div style="margin-bottom: 8px;">
+                    <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer;">
+                      <input type="checkbox" 
+                             class="use-items-checkbox" 
+                             data-subcategory-id="{{ subcat.subcategory_id }}"
+                             {% if subcat.use_items %}checked{% endif %}
+                             onchange="toggleBudgetMode({{ subcat.subcategory_id }})"
+                             style="width: auto; margin: 0;">
+                      <span>Usar itens</span>
+                    </label>
+                  </div>
+                  <div id="budget-direct-{{ subcat.subcategory_id }}" style="{% if subcat.use_items %}display: none;{% endif %}">
+                    <input type="number" 
+                           class="budget-input" 
+                           data-category-type="expense" 
+                           name="budget_{{ subcat.subcategory_id }}"
+                           step="0.01" 
+                           min="0" 
+                           value="{{ subcat.budget_str|default:'0.00' }}" 
+                           oninput="updateEditModeSummary()" 
+                           style="width: 100%; box-sizing: border-box;">
+                  </div>
+                  <div id="budget-items-{{ subcat.subcategory_id }}" data-category-type="expense" style="{% if not subcat.use_items %}display: none;{% endif %}">
+                    <input type="hidden" name="use_items_{{ subcat.subcategory_id }}" value="{% if subcat.use_items %}on{% endif %}">
+                    <div id="items-container-{{ subcat.subcategory_id }}" class="items-container">
+                      {% for item in subcat.budget_items %}
+                        <div class="budget-item-row" style="display: flex; gap: 5px; margin-bottom: 5px; align-items: center;">
+                          <input type="text" 
+                                 name="item_desc_{{ subcat.subcategory_id }}_{{ forloop.counter0 }}" 
+                                 value="{{ item.description }}" 
+                                 placeholder="Descrição" 
+                                 style="flex: 1; padding: 4px; box-sizing: border-box; font-size: 12px;">
+                          <input type="number" 
+                                 name="item_value_{{ subcat.subcategory_id }}_{{ forloop.counter0 }}" 
+                                 value="{{ item.amount|decimal_input }}" 
+                                 step="0.01" 
+                                 min="0" 
+                                 placeholder="Valor" 
+                                 oninput="updateItemsTotal({{ subcat.subcategory_id }})"
+                                 style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
+                          <button type="button" 
+                                  onclick="removeBudgetItem(this, {{ subcat.subcategory_id }})" 
+                                  style="padding: 4px 8px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>
+                        </div>
+                      {% endfor %}
+                    </div>
+                    <button type="button" 
+                            onclick="addBudgetItem({{ subcat.subcategory_id }})" 
+                            style="padding: 4px 8px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px;">+ Adicionar Item</button>
+                    <div style="margin-top: 5px; font-size: 16px; font-weight: bold;">
+                      Total: R$ <span id="items-total-{{ subcat.subcategory_id }}" style="font-size: 16px;">0.00</span>
+                    </div>
+                  </div>
                 {% else %}
-                  <span class="budget-text">R$ {{ subcat.budget|default:0|floatformat:2 }}</span>
+                  <span class="budget-text">
+                    R$ {{ subcat.budget|default:0|floatformat:2 }}
+                    {% if subcat.use_items and subcat.budget_items|length > 0 %}
+                      <button type="button" 
+                              onclick="toggleBudgetItems({{ subcat.subcategory_id }})" 
+                              style="margin-left: 5px; padding: 2px 6px; background: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 10px;">
+                        Ver itens
+                      </button>
+                      <div id="budget-items-display-{{ subcat.subcategory_id }}" style="display: none; margin-top: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 12px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                          <thead>
+                            <tr style="border-bottom: 1px solid #ddd;">
+                              <th style="text-align: left; padding: 4px;">Descrição</th>
+                              <th style="text-align: right; padding: 4px;">Valor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {% for item in subcat.budget_items %}
+                              <tr>
+                                <td style="padding: 4px;">{{ item.description }}</td>
+                                <td style="text-align: right; padding: 4px;">R$ {{ item.amount|floatformat:2 }}</td>
+                              </tr>
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    {% endif %}
+                    {% if subcat.budget_comment and subcat.budget_comment|length > 0 %}
+                      <span class="comment-icon" style="cursor: pointer; margin-left: 5px; vertical-align: middle; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #999; color: #999; font-size: 8px; font-weight: bold; font-style: italic; font-family: serif; line-height: 1;">
+                        i
+                        <span class="comment-tooltip">{{ subcat.budget_comment|escape }}</span>
+                      </span>
+                    {% endif %}
+                  </span>
                 {% endif %}
               </td>
               {% if is_edit_mode %}
               <td>
                 <textarea class="budget-comment-input" 
                           data-subcategory-id="{{ subcat.subcategory_id }}"
-                          rows="2" 
+                          rows="4" 
                           placeholder="Comentário opcional..."
-                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 16px;">{{ subcat.budget_comment|default:'' }}</textarea>
+                          style="width: 100%; padding: 4px; box-sizing: border-box; font-size: 14px;">{{ subcat.budget_comment|default:'' }}</textarea>
               </td>
               {% endif %}
-              <td>R$ {{ subcat.spent|floatformat:2 }}</td>
+              <td>
+                {% if subcat.spent and subcat.spent != 0.0 %}
+                  <a href="javascript:void(0);" 
+                     onclick="showSubcategoryTransactions({{ subcat.subcategory_id }}, {{ year }}, {{ month }}, '{{ subcat.subcategory_name|escapejs }}')"
+                     style="color: #1976d2; text-decoration: underline; cursor: pointer;">
+                    R$ {{ subcat.spent|floatformat:2 }}
+                  </a>
+                {% else %}
+                  R$ {{ subcat.spent|floatformat:2 }}
+                {% endif %}
+              </td>
               <td>R$ {{ subcat.diff|floatformat:2 }}</td>
           <td>
                 {% if subcat.percent %}
@@ -351,16 +655,38 @@
                       </td>
                     {% endif %}
                     <td>{{ subcat.name }}</td>
-                    <td>
-                      <input type="number" 
-                             class="template-budget-input" 
-                             data-subcategory-id="{{ subcat.id }}"
-                             data-category-is-income="{% if cat.category_is_income %}true{% else %}false{% endif %}"
-                             step="0.01" 
-                             min="0" 
-                             value="" 
-                             oninput="updateCreateTemplateTotals()"
-                             style="width: 100%; padding: 4px; box-sizing: border-box;">
+                    <td style="min-width: 250px;">
+                      <div style="margin-bottom: 8px;">
+                        <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer;">
+                          <input type="checkbox" 
+                                 class="template-use-items-checkbox" 
+                                 data-subcategory-id="{{ subcat.id }}"
+                                 onchange="toggleTemplateBudgetMode({{ subcat.id }})"
+                                 style="width: auto; margin: 0;">
+                          <span>Usar itens</span>
+                        </label>
+                      </div>
+                      <div id="template-budget-direct-{{ subcat.id }}">
+                        <input type="number" 
+                               class="template-budget-input" 
+                               data-subcategory-id="{{ subcat.id }}"
+                               data-category-is-income="{% if cat.category_is_income %}true{% else %}false{% endif %}"
+                               step="0.01" 
+                               min="0" 
+                               value="" 
+                               oninput="updateCreateTemplateTotals()"
+                               style="width: 100%; padding: 4px; box-sizing: border-box;">
+                      </div>
+                      <div id="template-budget-items-{{ subcat.id }}" style="display: none;">
+                        <div id="template-items-container-{{ subcat.id }}" class="template-items-container">
+                        </div>
+                        <button type="button" 
+                                onclick="addTemplateBudgetItem({{ subcat.id }})" 
+                                style="padding: 4px 8px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px;">+ Adicionar Item</button>
+                        <div style="margin-top: 5px; font-size: 12px; font-weight: bold;">
+                          Total: R$ <span id="template-items-total-{{ subcat.id }}">0.00</span>
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <textarea class="template-comment-input" 
@@ -462,16 +788,38 @@
                     </td>
                   {% endif %}
                   <td>{{ subcat.name }}</td>
-                  <td>
-                    <input type="number" 
-                           class="edit-template-budget-input" 
-                           data-subcategory-id="{{ subcat.id }}"
-                           data-category-is-income="{% if cat.category_is_income %}true{% else %}false{% endif %}"
-                           step="0.01" 
-                           min="0" 
-                           value="" 
-                           oninput="updateEditTemplateTotals()"
-                           style="width: 100%; padding: 4px; box-sizing: border-box;">
+                  <td style="min-width: 250px;">
+                    <div style="margin-bottom: 8px;">
+                      <label style="display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer;">
+                        <input type="checkbox" 
+                               class="edit-template-use-items-checkbox" 
+                               data-subcategory-id="{{ subcat.id }}"
+                               onchange="toggleEditTemplateBudgetMode({{ subcat.id }})"
+                               style="width: auto; margin: 0;">
+                        <span>Usar itens</span>
+                      </label>
+                    </div>
+                    <div id="edit-template-budget-direct-{{ subcat.id }}">
+                      <input type="number" 
+                             class="edit-template-budget-input" 
+                             data-subcategory-id="{{ subcat.id }}"
+                             data-category-is-income="{% if cat.category_is_income %}true{% else %}false{% endif %}"
+                             step="0.01" 
+                             min="0" 
+                             value="" 
+                             oninput="updateEditTemplateTotals()"
+                             style="width: 100%; padding: 4px; box-sizing: border-box;">
+                    </div>
+                    <div id="edit-template-budget-items-{{ subcat.id }}" style="display: none;">
+                      <div id="edit-template-items-container-{{ subcat.id }}" class="edit-template-items-container">
+                      </div>
+                      <button type="button" 
+                              onclick="addEditTemplateBudgetItem({{ subcat.id }})" 
+                              style="padding: 4px 8px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; margin-top: 5px;">+ Adicionar Item</button>
+                      <div style="margin-top: 5px; font-size: 12px; font-weight: bold;">
+                        Total: R$ <span id="edit-template-items-total-{{ subcat.id }}">0.00</span>
+                      </div>
+                    </div>
                   </td>
                   <td>
                     <textarea class="edit-template-comment-input" 
@@ -520,26 +868,67 @@ function saveBudget() {
   const form = document.getElementById('budget-form');
   
   // Limpar campos existentes (se houver)
-  const existingInputs = form.querySelectorAll('input[name^="budget_"], input[name^="comment_"]');
+  const existingInputs = form.querySelectorAll('input[name^="budget_"], input[name^="comment_"], input[name^="use_items_"], input[name^="item_"]');
   existingInputs.forEach(input => input.remove());
   
-  // Coletar todos os valores de orçamento e comentários
+  // Coletar todos os valores de orçamento, comentários e itens
   document.querySelectorAll('.budget-cell').forEach(cell => {
     const subcategoryId = cell.getAttribute('data-subcategory-id');
-    const input = cell.querySelector('.budget-input');
-    let value = input.value.trim();
     
-    // Se vazio ou 0, enviar string vazia (será tratado como deletar orçamento)
-    if (value === '' || value === '0' || parseFloat(value) === 0) {
-      value = '';
+    // Verificar se está usando itens
+    const checkbox = cell.querySelector(`.use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    const useItems = checkbox && checkbox.checked;
+    
+    if (useItems) {
+      // Modo itens: coletar itens
+      const hiddenUseItemsInput = document.createElement('input');
+      hiddenUseItemsInput.type = 'hidden';
+      hiddenUseItemsInput.name = `use_items_${subcategoryId}`;
+      hiddenUseItemsInput.value = 'on';
+      form.appendChild(hiddenUseItemsInput);
+      
+      // Coletar todos os itens
+      const itemsContainer = document.getElementById(`items-container-${subcategoryId}`);
+      if (itemsContainer) {
+        const rows = itemsContainer.querySelectorAll('.budget-item-row');
+        rows.forEach((row, index) => {
+          const descInput = row.querySelector('input[type="text"]');
+          const valueInput = row.querySelector('input[type="number"]');
+          
+          if (descInput && valueInput && descInput.value.trim() && valueInput.value.trim()) {
+            const hiddenDescInput = document.createElement('input');
+            hiddenDescInput.type = 'hidden';
+            hiddenDescInput.name = `item_desc_${subcategoryId}_${index}`;
+            hiddenDescInput.value = descInput.value.trim();
+            form.appendChild(hiddenDescInput);
+            
+            const hiddenValueInput = document.createElement('input');
+            hiddenValueInput.type = 'hidden';
+            hiddenValueInput.name = `item_value_${subcategoryId}_${index}`;
+            hiddenValueInput.value = valueInput.value.trim();
+            form.appendChild(hiddenValueInput);
+          }
+        });
+      }
+    } else {
+      // Modo direto: coletar valor direto
+      const input = cell.querySelector('.budget-input');
+      if (input) {
+        let value = input.value.trim();
+        
+        // Se vazio ou 0, enviar string vazia (será tratado como deletar orçamento)
+        if (value === '' || value === '0' || parseFloat(value) === 0) {
+          value = '';
+        }
+        
+        // Criar campo hidden para o valor do orçamento
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = `budget_${subcategoryId}`;
+        hiddenInput.value = value;
+        form.appendChild(hiddenInput);
+      }
     }
-    
-    // Criar campo hidden para o valor do orçamento
-    const hiddenInput = document.createElement('input');
-    hiddenInput.type = 'hidden';
-    hiddenInput.name = `budget_${subcategoryId}`;
-    hiddenInput.value = value;
-    form.appendChild(hiddenInput);
     
     // Coletar comentário se existir
     const commentInput = document.querySelector(`.budget-comment-input[data-subcategory-id="${subcategoryId}"]`);
@@ -589,6 +978,16 @@ function closeEditTemplateModal() {
   });
   document.querySelectorAll('.edit-template-comment-input').forEach(textarea => {
     textarea.value = '';
+  });
+  // Limpar checkboxes e itens
+  document.querySelectorAll('.edit-template-use-items-checkbox').forEach(checkbox => {
+    checkbox.checked = false;
+    const subcategoryId = checkbox.getAttribute('data-subcategory-id');
+    toggleEditTemplateBudgetMode(subcategoryId);
+    const container = document.getElementById(`edit-template-items-container-${subcategoryId}`);
+    if (container) {
+      container.innerHTML = '';
+    }
   });
   // Resetar totais
   updateEditTemplateTotals();
@@ -646,14 +1045,51 @@ function loadTemplateForEdit(templateId) {
       document.querySelectorAll('.edit-template-comment-input').forEach(textarea => {
         textarea.value = '';
       });
+      // Limpar checkboxes e itens
+      document.querySelectorAll('.edit-template-use-items-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+        const subcategoryId = checkbox.getAttribute('data-subcategory-id');
+        toggleEditTemplateBudgetMode(subcategoryId);
+        const container = document.getElementById(`edit-template-items-container-${subcategoryId}`);
+        if (container) {
+          container.innerHTML = '';
+        }
+      });
       
       // Preencher os valores do template
       if (data.items && data.items.length > 0) {
         data.items.forEach(item => {
-          const input = document.querySelector(`.edit-template-budget-input[data-subcategory-id="${item.subcategory_id}"]`);
-          if (input) {
-            input.value = item.amount;
+          const checkbox = document.querySelector(`.edit-template-use-items-checkbox[data-subcategory-id="${item.subcategory_id}"]`);
+          const useItems = item.use_items || false;
+          
+          if (checkbox) {
+            checkbox.checked = useItems;
+            toggleEditTemplateBudgetMode(item.subcategory_id);
           }
+          
+          if (useItems && item.items && item.items.length > 0) {
+            // Carregar itens
+            const container = document.getElementById(`edit-template-items-container-${item.subcategory_id}`);
+            if (container) {
+              container.innerHTML = '';
+              // Resetar contador para esta subcategoria
+              editTemplateItemCounters[item.subcategory_id] = 0;
+              item.items.forEach((budgetItem, index) => {
+                // Garantir que o valor use ponto como separador decimal
+                const amountValue = String(budgetItem.amount).replace(',', '.');
+                addEditTemplateBudgetItem(item.subcategory_id, budgetItem.description, amountValue);
+              });
+              updateEditTemplateItemsTotal(item.subcategory_id);
+            }
+          } else {
+            // Carregar valor direto
+            const input = document.querySelector(`.edit-template-budget-input[data-subcategory-id="${item.subcategory_id}"]`);
+            if (input) {
+              // Garantir que o valor use ponto como separador decimal
+              input.value = String(item.amount).replace(',', '.');
+            }
+          }
+          
           const commentInput = document.querySelector(`.edit-template-comment-input[data-subcategory-id="${item.subcategory_id}"]`);
           if (commentInput) {
             commentInput.value = item.comment || '';
@@ -709,16 +1145,52 @@ function createTemplate(event) {
   
   // Coletar valores dos inputs do modal
   const items = [];
-  document.querySelectorAll('.template-budget-input').forEach(input => {
-    const subcategoryId = input.getAttribute('data-subcategory-id');
-    const value = input.value.trim();
-    if (value && parseFloat(value) > 0) {
-      const commentInput = document.querySelector(`.template-comment-input[data-subcategory-id="${subcategoryId}"]`);
-      const comment = commentInput ? commentInput.value.trim() : '';
+  document.querySelectorAll('[data-subcategory-id]').forEach(element => {
+    const subcategoryId = element.getAttribute('data-subcategory-id');
+    if (items.find(item => item.subcategory_id === parseInt(subcategoryId))) {
+      return; // Já processado
+    }
+    
+    const checkbox = document.querySelector(`.template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    const useItems = checkbox && checkbox.checked;
+    const commentInput = document.querySelector(`.template-comment-input[data-subcategory-id="${subcategoryId}"]`);
+    const comment = commentInput ? commentInput.value.trim() : '';
+    
+    let amount = '0';
+    let budgetItems = [];
+    
+    if (useItems) {
+      // Coletar itens
+      const container = document.getElementById(`template-items-container-${subcategoryId}`);
+      if (container) {
+        const rows = container.querySelectorAll('.template-budget-item-row');
+        rows.forEach(row => {
+          const descInput = row.querySelector('input[type="text"]');
+          const valueInput = row.querySelector('input[type="number"]');
+          if (descInput && valueInput && descInput.value.trim() && valueInput.value.trim()) {
+            budgetItems.push({
+              description: descInput.value.trim(),
+              amount: valueInput.value.trim()
+            });
+          }
+        });
+      }
+      amount = '0'; // Será calculado no backend
+    } else {
+      // Coletar valor direto
+      const input = document.querySelector(`.template-budget-input[data-subcategory-id="${subcategoryId}"]`);
+      if (input) {
+        amount = input.value.trim();
+      }
+    }
+    
+    if (amount && parseFloat(amount) > 0 || useItems) {
       items.push({
         subcategory_id: parseInt(subcategoryId),
-        amount: value,
-        comment: comment
+        amount: amount,
+        comment: comment,
+        use_items: useItems,
+        items: budgetItems
       });
     }
   });
@@ -759,13 +1231,52 @@ function updateTemplate(event) {
   
   // Coletar valores dos inputs do modal de edição
   const items = [];
-  document.querySelectorAll('.edit-template-budget-input').forEach(input => {
-    const subcategoryId = input.getAttribute('data-subcategory-id');
-    const value = input.value.trim();
-    if (value && parseFloat(value) > 0) {
+  document.querySelectorAll('[data-subcategory-id]').forEach(element => {
+    const subcategoryId = element.getAttribute('data-subcategory-id');
+    if (items.find(item => item.subcategory_id === parseInt(subcategoryId))) {
+      return; // Já processado
+    }
+    
+    const checkbox = document.querySelector(`.edit-template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    const useItems = checkbox && checkbox.checked;
+    const commentInput = document.querySelector(`.edit-template-comment-input[data-subcategory-id="${subcategoryId}"]`);
+    const comment = commentInput ? commentInput.value.trim() : '';
+    
+    let amount = '0';
+    let budgetItems = [];
+    
+    if (useItems) {
+      // Coletar itens
+      const container = document.getElementById(`edit-template-items-container-${subcategoryId}`);
+      if (container) {
+        const rows = container.querySelectorAll('.edit-template-budget-item-row');
+        rows.forEach(row => {
+          const descInput = row.querySelector('input[type="text"]');
+          const valueInput = row.querySelector('input[type="number"]');
+          if (descInput && valueInput && descInput.value.trim() && valueInput.value.trim()) {
+            budgetItems.push({
+              description: descInput.value.trim(),
+              amount: valueInput.value.trim()
+            });
+          }
+        });
+      }
+      amount = '0'; // Será calculado no backend
+    } else {
+      // Coletar valor direto
+      const input = document.querySelector(`.edit-template-budget-input[data-subcategory-id="${subcategoryId}"]`);
+      if (input) {
+        amount = input.value.trim();
+      }
+    }
+    
+    if (amount && parseFloat(amount) > 0 || useItems) {
       items.push({
         subcategory_id: parseInt(subcategoryId),
-        amount: value
+        amount: amount,
+        comment: comment,
+        use_items: useItems,
+        items: budgetItems
       });
     }
   });
@@ -886,14 +1397,37 @@ function updateCreateTemplateTotals() {
   let totalIncome = 0;
   let totalExpenses = 0;
   
+  // Valores diretos
   document.querySelectorAll('.template-budget-input').forEach(input => {
-    const value = parseFloat(input.value) || 0;
-    const isIncome = input.getAttribute('data-category-is-income') === 'true';
-    
-    if (isIncome) {
-      totalIncome += value;
-    } else {
-      totalExpenses += value;
+    const subcategoryId = input.getAttribute('data-subcategory-id');
+    const checkbox = document.querySelector(`.template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    // Só contar se não estiver usando itens
+    if (!checkbox || !checkbox.checked) {
+      const value = parseFloat(input.value) || 0;
+      const isIncome = input.getAttribute('data-category-is-income') === 'true';
+      
+      if (isIncome) {
+        totalIncome += value;
+      } else {
+        totalExpenses += value;
+      }
+    }
+  });
+  
+  // Valores dos itens
+  document.querySelectorAll('[id^="template-items-total-"]').forEach(span => {
+    const subcategoryId = span.id.replace('template-items-total-', '');
+    const checkbox = document.querySelector(`.template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    if (checkbox && checkbox.checked) {
+      const value = parseFloat(span.textContent) || 0;
+      const input = document.querySelector(`.template-budget-input[data-subcategory-id="${subcategoryId}"]`);
+      const isIncome = input && input.getAttribute('data-category-is-income') === 'true';
+      
+      if (isIncome) {
+        totalIncome += value;
+      } else {
+        totalExpenses += value;
+      }
     }
   });
   
@@ -912,14 +1446,37 @@ function updateEditTemplateTotals() {
   let totalIncome = 0;
   let totalExpenses = 0;
   
+  // Valores diretos
   document.querySelectorAll('.edit-template-budget-input').forEach(input => {
-    const value = parseFloat(input.value) || 0;
-    const isIncome = input.getAttribute('data-category-is-income') === 'true';
-    
-    if (isIncome) {
-      totalIncome += value;
-    } else {
-      totalExpenses += value;
+    const subcategoryId = input.getAttribute('data-subcategory-id');
+    const checkbox = document.querySelector(`.edit-template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    // Só contar se não estiver usando itens
+    if (!checkbox || !checkbox.checked) {
+      const value = parseFloat(input.value) || 0;
+      const isIncome = input.getAttribute('data-category-is-income') === 'true';
+      
+      if (isIncome) {
+        totalIncome += value;
+      } else {
+        totalExpenses += value;
+      }
+    }
+  });
+  
+  // Valores dos itens
+  document.querySelectorAll('[id^="edit-template-items-total-"]').forEach(span => {
+    const subcategoryId = span.id.replace('edit-template-items-total-', '');
+    const checkbox = document.querySelector(`.edit-template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    if (checkbox && checkbox.checked) {
+      const value = parseFloat(span.textContent) || 0;
+      const input = document.querySelector(`.edit-template-budget-input[data-subcategory-id="${subcategoryId}"]`);
+      const isIncome = input && input.getAttribute('data-category-is-income') === 'true';
+      
+      if (isIncome) {
+        totalIncome += value;
+      } else {
+        totalExpenses += value;
+      }
     }
   });
   
@@ -933,19 +1490,203 @@ function updateEditTemplateTotals() {
   balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
 }
 
+// Funções para gerenciar itens nos templates de criação
+let templateItemCounters = {};
+
+function toggleTemplateBudgetMode(subcategoryId) {
+  const checkbox = document.querySelector(`.template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+  const directDiv = document.getElementById(`template-budget-direct-${subcategoryId}`);
+  const itemsDiv = document.getElementById(`template-budget-items-${subcategoryId}`);
+  
+  if (checkbox.checked) {
+    directDiv.style.display = 'none';
+    itemsDiv.style.display = 'block';
+    updateTemplateItemsTotal(subcategoryId);
+  } else {
+    directDiv.style.display = 'block';
+    itemsDiv.style.display = 'none';
+  }
+  updateCreateTemplateTotals();
+}
+
+function addTemplateBudgetItem(subcategoryId, description = '', amount = '') {
+  if (!templateItemCounters[subcategoryId]) {
+    templateItemCounters[subcategoryId] = document.querySelectorAll(`#template-items-container-${subcategoryId} .template-budget-item-row`).length;
+  }
+  
+  const container = document.getElementById(`template-items-container-${subcategoryId}`);
+  const index = templateItemCounters[subcategoryId]++;
+  
+  const row = document.createElement('div');
+  row.className = 'template-budget-item-row';
+  row.style.cssText = 'display: flex; gap: 5px; margin-bottom: 5px; align-items: center;';
+  row.innerHTML = `
+    <input type="text" 
+           placeholder="Descrição" 
+           value="${description}"
+           style="flex: 1; padding: 4px; box-sizing: border-box; font-size: 12px;">
+    <input type="number" 
+           step="0.01" 
+           min="0" 
+           placeholder="Valor" 
+           value="${amount}"
+           oninput="updateTemplateItemsTotal(${subcategoryId}); updateCreateTemplateTotals();"
+           style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
+    <button type="button" 
+            onclick="removeTemplateBudgetItem(this, ${subcategoryId})" 
+            style="padding: 4px 8px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>
+  `;
+  
+  container.appendChild(row);
+  updateTemplateItemsTotal(subcategoryId);
+  updateCreateTemplateTotals();
+}
+
+function removeTemplateBudgetItem(button, subcategoryId) {
+  button.closest('.template-budget-item-row').remove();
+  updateTemplateItemsTotal(subcategoryId);
+  updateCreateTemplateTotals();
+}
+
+function updateTemplateItemsTotal(subcategoryId) {
+  const container = document.getElementById(`template-items-container-${subcategoryId}`);
+  const rows = container.querySelectorAll('.template-budget-item-row');
+  let total = 0;
+  
+  rows.forEach(row => {
+    const valueInput = row.querySelector('input[type="number"]');
+    if (valueInput && valueInput.value) {
+      total += parseFloat(valueInput.value) || 0;
+    }
+  });
+  
+  const totalSpan = document.getElementById(`template-items-total-${subcategoryId}`);
+  if (totalSpan) {
+    totalSpan.textContent = total.toFixed(2);
+  }
+}
+
+// Funções para gerenciar itens nos templates de edição
+let editTemplateItemCounters = {};
+
+function toggleEditTemplateBudgetMode(subcategoryId) {
+  const checkbox = document.querySelector(`.edit-template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+  const directDiv = document.getElementById(`edit-template-budget-direct-${subcategoryId}`);
+  const itemsDiv = document.getElementById(`edit-template-budget-items-${subcategoryId}`);
+  
+  if (checkbox.checked) {
+    directDiv.style.display = 'none';
+    itemsDiv.style.display = 'block';
+    updateEditTemplateItemsTotal(subcategoryId);
+  } else {
+    directDiv.style.display = 'block';
+    itemsDiv.style.display = 'none';
+  }
+  updateEditTemplateTotals();
+}
+
+function addEditTemplateBudgetItem(subcategoryId, description = '', amount = '') {
+  if (!editTemplateItemCounters[subcategoryId]) {
+    editTemplateItemCounters[subcategoryId] = document.querySelectorAll(`#edit-template-items-container-${subcategoryId} .edit-template-budget-item-row`).length;
+  }
+  
+  const container = document.getElementById(`edit-template-items-container-${subcategoryId}`);
+  const index = editTemplateItemCounters[subcategoryId]++;
+  
+  const row = document.createElement('div');
+  row.className = 'edit-template-budget-item-row';
+  row.style.cssText = 'display: flex; gap: 5px; margin-bottom: 5px; align-items: center;';
+  row.innerHTML = `
+    <input type="text" 
+           placeholder="Descrição" 
+           value="${description}"
+           style="flex: 1; padding: 4px; box-sizing: border-box; font-size: 12px;">
+    <input type="number" 
+           step="0.01" 
+           min="0" 
+           placeholder="Valor" 
+           value="${amount}"
+           oninput="updateEditTemplateItemsTotal(${subcategoryId}); updateEditTemplateTotals();"
+           style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
+    <button type="button" 
+            onclick="removeEditTemplateBudgetItem(this, ${subcategoryId})" 
+            style="padding: 4px 8px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>
+  `;
+  
+  container.appendChild(row);
+  updateEditTemplateItemsTotal(subcategoryId);
+  updateEditTemplateTotals();
+}
+
+function removeEditTemplateBudgetItem(button, subcategoryId) {
+  button.closest('.edit-template-budget-item-row').remove();
+  updateEditTemplateItemsTotal(subcategoryId);
+  updateEditTemplateTotals();
+}
+
+function updateEditTemplateItemsTotal(subcategoryId) {
+  const container = document.getElementById(`edit-template-items-container-${subcategoryId}`);
+  const rows = container.querySelectorAll('.edit-template-budget-item-row');
+  let total = 0;
+  
+  rows.forEach(row => {
+    const valueInput = row.querySelector('input[type="number"]');
+    if (valueInput && valueInput.value) {
+      total += parseFloat(valueInput.value) || 0;
+    }
+  });
+  
+  const totalSpan = document.getElementById(`edit-template-items-total-${subcategoryId}`);
+  if (totalSpan) {
+    totalSpan.textContent = total.toFixed(2);
+  }
+}
+
 // Função para calcular e atualizar resumo do modo de edição em tempo real
 function updateEditModeSummary() {
   let totalIncome = 0;
   let totalExpenses = 0;
   
+  // Calcular valores dos inputs diretos (modo não-itens)
   document.querySelectorAll('.budget-input').forEach(input => {
-    const value = parseFloat(input.value) || 0;
-    const categoryType = input.getAttribute('data-category-type');
+    // Verificar se o input está visível (não está escondido pelo modo itens)
+    const parentCell = input.closest('.budget-cell');
+    if (parentCell) {
+      const subcategoryId = parentCell.getAttribute('data-subcategory-id');
+      const checkbox = document.querySelector(`.use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+      // Só contar se o checkbox não estiver marcado (modo direto)
+      if (!checkbox || !checkbox.checked) {
+        const value = parseFloat(input.value) || 0;
+        const categoryType = input.getAttribute('data-category-type');
+        
+        if (categoryType === 'income') {
+          totalIncome += value;
+        } else if (categoryType === 'expense') {
+          totalExpenses += value;
+        }
+      }
+    }
+  });
+  
+  // Calcular valores dos itens (modo itens)
+  document.querySelectorAll('[id^="budget-items-"]').forEach(itemsDiv => {
+    const subcategoryId = itemsDiv.id.replace('budget-items-', '');
+    // Verificar se o checkbox está marcado (modo itens ativado)
+    const checkbox = document.querySelector(`.use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
     
-    if (categoryType === 'income') {
-      totalIncome += value;
-    } else if (categoryType === 'expense') {
-      totalExpenses += value;
+    if (checkbox && checkbox.checked) {
+      const categoryType = itemsDiv.getAttribute('data-category-type');
+      const totalSpan = document.getElementById(`items-total-${subcategoryId}`);
+      
+      if (totalSpan) {
+        const itemsTotal = parseFloat(totalSpan.textContent) || 0;
+        
+        if (categoryType === 'income') {
+          totalIncome += itemsTotal;
+        } else if (categoryType === 'expense') {
+          totalExpenses += itemsTotal;
+        }
+      }
     }
   });
   
@@ -959,17 +1700,18 @@ function updateEditModeSummary() {
   balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
 }
 
-// Atualizar resumo ao carregar a página no modo de edição
-if (document.getElementById('editModeSummary')) {
-  updateEditModeSummary();
-}
+// Nota: O resumo será atualizado após o DOMContentLoaded garantir que os totais dos itens sejam calculados
 
 // Fechar modais ao clicar fora
 window.onclick = function(event) {
+  const subcategoryTransactionsModal = document.getElementById('subcategoryTransactionsModal');
   const templatesModal = document.getElementById('templatesModal');
   const saveTemplateModal = document.getElementById('saveTemplateModal');
   const editTemplateModal = document.getElementById('editTemplateModal');
   
+  if (event.target === subcategoryTransactionsModal) {
+    closeSubcategoryTransactionsModal();
+  }
   if (event.target === templatesModal) {
     closeTemplatesModal();
   }
@@ -980,7 +1722,280 @@ window.onclick = function(event) {
     closeEditTemplateModal();
   }
 }
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 </script>
 {% endif %}
+
+<script>
+// Funções para gerenciar itens de orçamento
+// Função escapeHtml para uso em ambos os modos (visualização e edição)
+function escapeHtml(text) {
+  if (typeof text === 'undefined' || text === null) {
+    return '';
+  }
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+let itemCounters = {};
+
+function toggleBudgetMode(subcategoryId) {
+  const checkbox = document.querySelector(`.use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+  const directDiv = document.getElementById(`budget-direct-${subcategoryId}`);
+  const itemsDiv = document.getElementById(`budget-items-${subcategoryId}`);
+  const hiddenInput = itemsDiv.querySelector('input[type="hidden"]');
+  
+  if (checkbox.checked) {
+    directDiv.style.display = 'none';
+    itemsDiv.style.display = 'block';
+    hiddenInput.value = 'on';
+    updateItemsTotal(subcategoryId);
+  } else {
+    directDiv.style.display = 'block';
+    itemsDiv.style.display = 'none';
+    hiddenInput.value = '';
+  }
+  updateEditModeSummary();
+}
+
+function addBudgetItem(subcategoryId) {
+  if (!itemCounters[subcategoryId]) {
+    itemCounters[subcategoryId] = document.querySelectorAll(`#items-container-${subcategoryId} .budget-item-row`).length;
+  }
+  
+  const container = document.getElementById(`items-container-${subcategoryId}`);
+  const index = itemCounters[subcategoryId]++;
+  
+  const row = document.createElement('div');
+  row.className = 'budget-item-row';
+  row.style.cssText = 'display: flex; gap: 5px; margin-bottom: 5px; align-items: center;';
+  row.innerHTML = `
+    <input type="text" 
+           name="item_desc_${subcategoryId}_${index}" 
+           placeholder="Descrição" 
+           style="flex: 1; padding: 4px; box-sizing: border-box; font-size: 12px;">
+    <input type="number" 
+           name="item_value_${subcategoryId}_${index}" 
+           step="0.01" 
+           min="0" 
+           placeholder="Valor" 
+           oninput="updateItemsTotal(${subcategoryId})"
+           style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
+    <button type="button" 
+            onclick="removeBudgetItem(this, ${subcategoryId})" 
+            style="padding: 4px 8px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>
+  `;
+  
+  container.appendChild(row);
+  updateItemsTotal(subcategoryId);
+}
+
+function removeBudgetItem(button, subcategoryId) {
+  button.closest('.budget-item-row').remove();
+  updateItemsTotal(subcategoryId);
+  updateEditModeSummary();
+}
+
+function updateItemsTotal(subcategoryId) {
+  const container = document.getElementById(`items-container-${subcategoryId}`);
+  const rows = container.querySelectorAll('.budget-item-row');
+  let total = 0;
+  
+  rows.forEach(row => {
+    const valueInput = row.querySelector('input[type="number"]');
+    if (valueInput && valueInput.value) {
+      total += parseFloat(valueInput.value) || 0;
+    }
+  });
+  
+  const totalSpan = document.getElementById(`items-total-${subcategoryId}`);
+  if (totalSpan) {
+    totalSpan.textContent = total.toFixed(2);
+  }
+  
+  updateEditModeSummary();
+}
+
+function toggleBudgetItems(subcategoryId) {
+  const displayDiv = document.getElementById(`budget-items-display-${subcategoryId}`);
+  if (displayDiv) {
+    displayDiv.style.display = displayDiv.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+// Inicializar contadores de itens
+document.addEventListener('DOMContentLoaded', function() {
+  // Inicializar contadores baseado nos itens existentes
+  document.querySelectorAll('.items-container').forEach(container => {
+    const subcategoryId = container.id.replace('items-container-', '');
+    const rows = container.querySelectorAll('.budget-item-row');
+    itemCounters[subcategoryId] = rows.length;
+    
+    // Calcular total inicial
+    updateItemsTotal(parseInt(subcategoryId));
+  });
+  
+  // Atualizar resumo após calcular todos os totais dos itens
+  if (document.getElementById('editModeSummary')) {
+    updateEditModeSummary();
+  }
+});
+
+// Ajustar posição do tooltip para primeiras linhas da tabela
+document.addEventListener('DOMContentLoaded', function() {
+  const commentIcons = document.querySelectorAll('.comment-icon');
+  
+  commentIcons.forEach(function(icon) {
+    icon.addEventListener('mouseenter', function() {
+      const tooltip = this.querySelector('.comment-tooltip');
+      if (!tooltip) return;
+      
+      // Remover classe anterior
+      tooltip.classList.remove('tooltip-below');
+      
+      // Encontrar a linha (tr) que contém este ícone
+      const row = this.closest('tr');
+      if (!row) return;
+      
+      // Verificar se é uma das primeiras linhas da tabela
+      const table = row.closest('table');
+      if (!table) return;
+      
+      const allRows = Array.from(table.querySelectorAll('tbody tr'));
+      const rowIndex = allRows.indexOf(row);
+      
+      // Obter posição do ícone na viewport
+      const iconRect = this.getBoundingClientRect();
+      const spaceAbove = iconRect.top;
+      
+      // Se está nas primeiras 2 linhas OU está muito próximo do topo da viewport (menos de 200px), mostrar abaixo
+      if (rowIndex < 2 || spaceAbove < 200) {
+        tooltip.classList.add('tooltip-below');
+      }
+    });
+  });
+});
+</script>
+
+<!-- Modal para exibir transações da subcategoria -->
+<div id="subcategoryTransactionsModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+  <div style="background-color: #fefefe; margin: 2% auto; padding: 20px; border: 1px solid #888; width: auto; max-width: 90%; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0;" id="subcategoryTransactionsModalTitle">Transações da Subcategoria</h2>
+      <span onclick="closeSubcategoryTransactionsModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    </div>
+    
+    <div id="subcategoryTransactionsContent" style="min-height: 200px;">
+      <p style="text-align: center; padding: 40px;">Carregando transações...</p>
+    </div>
+  </div>
+</div>
+
+<script>
+function showSubcategoryTransactions(subcategoryId, year, month, subcategoryName) {
+  const modal = document.getElementById('subcategoryTransactionsModal');
+  const title = document.getElementById('subcategoryTransactionsModalTitle');
+  const content = document.getElementById('subcategoryTransactionsContent');
+  
+  // Atualizar título
+  title.textContent = `Transações: ${subcategoryName} - ${month}/${year}`;
+  
+  // Mostrar modal
+  modal.style.display = 'block';
+  
+  // Mostrar loading
+  content.innerHTML = '<p style="text-align: center; padding: 40px;">Carregando transações...</p>';
+  
+  // Carregar transações
+  const url = `{% url "finance:subcategory_transactions" %}?subcategory_id=${subcategoryId}&year=${year}&month=${month}`;
+  
+  fetch(url)
+    .then(response => {
+      if (!response.ok) {
+        return response.text().then(text => {
+          throw new Error(`HTTP error! status: ${response.status}, response: ${text.substring(0, 200)}`);
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Dados recebidos:', data);
+      if (data.success) {
+        if (data.transactions && data.transactions.length > 0) {
+          // Criar tabela
+          let html = `
+            <div style="margin-bottom: 15px;">
+              <p><strong>Total de transações:</strong> ${data.count}</p>
+              <p><strong>Valor total:</strong> R$ ${data.total.toFixed(2)}</p>
+            </div>
+            <table border="1" cellspacing="0" cellpadding="6" style="width: 95%; margin: 0 auto; border-collapse: collapse; font-size: 16px;">
+              <thead>
+                <tr style="background-color: #f5f5f5;">
+                  <th style="text-align: left; padding: 6px; white-space: nowrap; width: 90px;">Data</th>
+                  <th style="text-align: left; padding: 6px; max-width: 200px;">Descrição</th>
+                  <th style="text-align: right; padding: 6px; white-space: nowrap;">Valor</th>
+                  <th style="text-align: left; padding: 6px; width: 130px;">Cartão</th>
+                  <th style="text-align: center; padding: 6px; white-space: nowrap; width: 60px;">Pago</th>
+                  <th style="text-align: left; padding: 6px; max-width: 150px;">Comentário</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+          
+          data.transactions.forEach(transaction => {
+            const typeColor = transaction.type === 'Receita' ? '#2e7d32' : '#c62828';
+            const paidStatus = transaction.is_paid ? '✓' : '✗';
+            const paidColor = transaction.is_paid ? '#2e7d32' : '#c62828';
+            
+            html += `
+              <tr>
+                <td style="padding: 6px; white-space: nowrap; width: 90px;">${transaction.date}</td>
+                <td style="padding: 6px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(transaction.description)}">${escapeHtml(transaction.description)}</td>
+                <td style="padding: 6px; text-align: right; font-weight: bold; color: ${typeColor}; white-space: nowrap;">R$ ${transaction.amount.toFixed(2)}</td>
+                <td style="padding: 6px; width: 130px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(transaction.credit_card)}">${escapeHtml(transaction.credit_card)}</td>
+                <td style="padding: 6px; text-align: center; color: ${paidColor}; font-weight: bold; width: 60px;">${paidStatus}</td>
+                <td style="padding: 6px; font-size: 12px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(transaction.comment)}">${escapeHtml(transaction.comment)}</td>
+              </tr>
+            `;
+          });
+          
+          html += `
+              </tbody>
+              <tfoot>
+                <tr style="background-color: #f5f5f5; font-weight: bold;">
+                  <td colspan="2" style="text-align: right; padding: 6px;">Total:</td>
+                  <td style="text-align: right; padding: 6px; font-size: 16px; white-space: nowrap;">R$ ${data.total.toFixed(2)}</td>
+                  <td colspan="3"></td>
+                </tr>
+              </tfoot>
+            </table>
+          `;
+          
+          content.innerHTML = html;
+        } else {
+          content.innerHTML = '<p style="text-align: center; padding: 40px;">Nenhuma transação encontrada para esta subcategoria no período selecionado.</p>';
+        }
+      } else {
+        content.innerHTML = `<p style="text-align: center; padding: 40px; color: #c62828;">Erro ao carregar transações: ${data.error || 'Erro desconhecido'}</p>`;
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao carregar transações:', error);
+      console.error('URL:', url);
+      console.error('Parâmetros:', { subcategoryId, year, month });
+      content.innerHTML = `<p style="text-align: center; padding: 40px; color: #c62828;">Erro ao carregar transações: ${error.message || 'Erro desconhecido'}</p>`;
+    });
+}
+
+function closeSubcategoryTransactionsModal() {
+  document.getElementById('subcategoryTransactionsModal').style.display = 'none';
+}
+
+</script>
 
 {% endblock %}

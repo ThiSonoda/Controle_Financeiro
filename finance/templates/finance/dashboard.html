@@ -457,7 +457,7 @@
       <span>85% - 99% do orçado</span>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
-      <div style="width: 20px; height: 12px; background-color: rgba(255, 193, 7, 0.7); border: 2px solid rgba(255, 193, 7, 1);"></div>
+      <div style="width: 20px; height: 12px; background-color: rgba(49, 248, 59, 0.7); border: 2px solid rgba(46, 125, 50, 1);"></div>
       <span>100% do orçado</span>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
@@ -1091,7 +1091,7 @@
           } else if (percentage < 100) {
             ctx.fillStyle = 'rgba(255, 152, 0, 1)'; // Laranja
           } else if (Math.abs(percentage - 100) < 0.01) {
-            ctx.fillStyle = 'rgba(255, 193, 7, 1)'; // Amarelo (com tolerância para arredondamentos)
+            ctx.fillStyle = 'rgba(46, 125, 50, 1)'; // Verde (com tolerância para arredondamentos)
           } else {
             ctx.fillStyle = 'rgba(198, 40, 40, 1)'; // Vermelho
           }
@@ -1163,9 +1163,9 @@
         spentColors.push('rgba(255, 152, 0, 0.7)'); // Laranja com transparência
         spentBorderColors.push('rgba(255, 152, 0, 1)'); // Laranja sólido
       } else if (Math.abs(percentage - 100) < 0.01) {
-        // Amarelo para exatamente 100% (com tolerância para arredondamentos)
-        spentColors.push('rgba(255, 193, 7, 0.7)'); // Amarelo com transparência
-        spentBorderColors.push('rgba(255, 193, 7, 1)'); // Amarelo sólido
+        // Verde para exatamente 100% (com tolerância para arredondamentos)
+        spentColors.push('rgba(46, 125, 50, 0.7)'); // Verde com transparência
+        spentBorderColors.push('rgba(46, 125, 50, 1)'); // Verde sólido
       } else {
         // Vermelho para > 100%
         spentColors.push('rgba(198, 40, 40, 0.7)'); // Vermelho com transparência

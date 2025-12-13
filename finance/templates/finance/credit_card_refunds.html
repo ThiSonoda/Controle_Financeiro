@@ -1,0 +1,177 @@
+{% extends "finance/base.html" %}
+{% load static %}
+
+{% block content %}
+<h1>Estornos de Cartão de Crédito</h1>
+
+{% if messages %}
+  <ul class="messages">
+    {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+<!-- Filtros -->
+<div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+  <form method="get" action="" style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+    <div>
+      <label for="card_id">Cartão:</label>
+      <select id="card_id" name="card_id" style="height: 35px;">
+        <option value="">Todos</option>
+        {% for card in credit_cards %}
+          <option value="{{ card.id }}" {% if selected_card_id == card.id|stringformat:"s" %}selected{% endif %}>{{ card.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="year">Ano:</label>
+      <input type="number" id="year" name="year" value="{{ selected_year }}" min="2020" max="2100" style="height: 35px; width: 100px; height: 20px;">
+    </div>
+    <div>
+      <label for="month">Mês:</label>
+      <select id="month" name="month" style="height: 35px;">
+        <option value="">Todos</option>
+        <option value="1" {% if selected_month == "1" %}selected{% endif %}>Janeiro</option>
+        <option value="2" {% if selected_month == "2" %}selected{% endif %}>Fevereiro</option>
+        <option value="3" {% if selected_month == "3" %}selected{% endif %}>Março</option>
+        <option value="4" {% if selected_month == "4" %}selected{% endif %}>Abril</option>
+        <option value="5" {% if selected_month == "5" %}selected{% endif %}>Maio</option>
+        <option value="6" {% if selected_month == "6" %}selected{% endif %}>Junho</option>
+        <option value="7" {% if selected_month == "7" %}selected{% endif %}>Julho</option>
+        <option value="8" {% if selected_month == "8" %}selected{% endif %}>Agosto</option>
+        <option value="9" {% if selected_month == "9" %}selected{% endif %}>Setembro</option>
+        <option value="10" {% if selected_month == "10" %}selected{% endif %}>Outubro</option>
+        <option value="11" {% if selected_month == "11" %}selected{% endif %}>Novembro</option>
+        <option value="12" {% if selected_month == "12" %}selected{% endif %}>Dezembro</option>
+      </select>
+    </div>
+    <button type="submit" style="height: 35px; padding: 0 20px;">Filtrar</button>
+    <a href="{% url 'finance:credit_card_refunds' %}" style="height: 35px; padding: 0 20px; line-height: 35px; text-decoration: none; background-color: #999; color: white; border-radius: 4px; display: inline-block;">Limpar</a>
+  </form>
+</div>
+
+<!-- Botão para criar novo estorno -->
+<div style="margin-bottom: 20px;">
+  <a href="javascript:void(0);" onclick="document.getElementById('createRefundForm').style.display = document.getElementById('createRefundForm').style.display === 'none' ? 'block' : 'none';" style="padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; display: inline-block;">+ Novo Estorno</a>
+</div>
+
+<!-- Formulário para criar estorno -->
+<div id="createRefundForm" style="display: none; background-color: #f5f5f5; padding: 20px; border-radius: 6px; margin-bottom: 20px;">
+  <h3>Novo Estorno</h3>
+  <form method="post" action="{% url 'finance:create_credit_card_refund' %}">
+    {% csrf_token %}
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 15px;">
+      <div>
+        <label for="credit_card">Cartão de Crédito: *</label>
+        <select id="credit_card" name="credit_card" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+          <option value="">Selecione um cartão</option>
+          {% for card in credit_cards %}
+            <option value="{{ card.id }}">{{ card.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="amount">Valor: *</label>
+        <input type="number" id="amount" name="amount" step="0.01" min="0.01" required style="width: 100%; padding: 8px; box-sizing: border-box;" placeholder="0.00">
+      </div>
+      <div>
+        <label for="refund_date">Data do Estorno: *</label>
+        <input type="date" id="refund_date" name="refund_date" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+      </div>
+      <div>
+        <label for="invoice_year">Ano da Fatura: *</label>
+        <input type="number" id="invoice_year" name="invoice_year" required style="width: 100%; padding: 8px; box-sizing: border-box;" min="2020" max="2100">
+      <div>
+        <label for="invoice_month">Mês da Fatura: *</label>
+        <select id="invoice_month" name="invoice_month" required style="width: 100%; padding: 8px; box-sizing: border-box;">
+          <option value="">Selecione o mês</option>
+          <option value="1">Janeiro</option>
+          <option value="2">Fevereiro</option>
+          <option value="3">Março</option>
+          <option value="4">Abril</option>
+          <option value="5">Maio</option>
+          <option value="6">Junho</option>
+          <option value="7">Julho</option>
+          <option value="8">Agosto</option>
+          <option value="9">Setembro</option>
+          <option value="10">Outubro</option>
+          <option value="11">Novembro</option>
+          <option value="12">Dezembro</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom: 15px;">
+      <label for="description">Descrição: *</label>
+      <textarea id="description" name="description" required style="width: 100%; padding: 8px; box-sizing: border-box; min-height: 100px;" placeholder="Descreva o motivo do estorno"></textarea>
+    </div>
+    <div>
+      <button type="submit" style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Salvar Estorno</button>
+      <button type="button" onclick="document.getElementById('createRefundForm').style.display = 'none';" style="padding: 10px 20px; background-color: #999; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">Cancelar</button>
+    </div>
+  </form>
+</div>
+
+<!-- Tabela de estornos -->
+{% if refunds %}
+  <div style="margin-bottom: 10px;">
+    <strong>Total de Estornos: R$ {{ total_amount|floatformat:2 }}</strong>
+  </div>
+  <table border="1" cellspacing="0" cellpadding="8" style="width: 100%; border-collapse: collapse;">
+    <thead>
+      <tr style="background-color: #f5f5f5;">
+        <th>Data do Estorno</th>
+        <th>Cartão</th>
+        <th>Valor</th>
+        <th>Fatura (Mês/Ano)</th>
+        <th>Descrição</th>
+        <th>Data de Criação</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for refund in refunds %}
+        <tr>
+          <td>{{ refund.refund_date|date:"d/m/Y" }}</td>
+          <td>{{ refund.credit_card.name }}</td>
+          <td style="text-align: right; font-weight: bold; color: #c62828;">R$ {{ refund.amount|floatformat:2 }}</td>
+          <td>{{ refund.invoice_month }}/{{ refund.invoice_year }}</td>
+          <td>{{ refund.description }}</td>
+          <td>{{ refund.created_at|date:"d/m/Y H:i" }}</td>
+          <td>
+            <a href="{% url 'finance:edit_credit_card_refund' refund.id %}" style="padding: 5px 10px; background-color: #2196F3; color: white; text-decoration: none; border-radius: 4px; margin-right: 5px;">Editar</a>
+            <a href="{% url 'finance:delete_credit_card_refund' refund.id %}" style="padding: 5px 10px; background-color: #f44336; color: white; text-decoration: none; border-radius: 4px;">Deletar</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="background-color: #f5f5f5; font-weight: bold;">
+        <td colspan="2" style="text-align: right;">Total:</td>
+        <td style="text-align: right; color: #c62828;">R$ {{ total_amount|floatformat:2 }}</td>
+        <td colspan="4"></td>
+      </tr>
+    </tfoot>
+  </table>
+{% else %}
+  <p>Nenhum estorno encontrado.</p>
+{% endif %}
+
+<script>
+// Definir data atual no campo de data e ano da fatura
+document.addEventListener('DOMContentLoaded', function() {
+  const today = new Date().toISOString().split('T')[0];
+  const refundDateInput = document.getElementById('refund_date');
+  const invoiceYearInput = document.getElementById('invoice_year');
+  
+  if (refundDateInput && !refundDateInput.value) {
+    refundDateInput.value = today;
+  }
+  
+  if (invoiceYearInput && !invoiceYearInput.value) {
+    invoiceYearInput.value = new Date().getFullYear();
+  }
+});
+</script>
+
+{% endblock %}
