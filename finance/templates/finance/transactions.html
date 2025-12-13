@@ -76,6 +76,58 @@
     }
   }
 
+  /* Tooltip para comentário */
+  .comment-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .comment-icon:hover {
+    border-color: #666 !important;
+    color: #666 !important;
+  }
+  
+  .comment-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 10px 12px;
+    position: absolute;
+    z-index: 1000;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-width: 300px;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: opacity 0.3s, visibility 0.3s;
+    pointer-events: none;
+  }
+  
+  .comment-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 6px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+  }
+  
+  .comment-icon:hover .comment-tooltip {
+    visibility: visible;
+    opacity: 1;
+  }
+
   /* Form controls full width and spacing */
   .transactions-layout form div { margin-bottom: 12px; }
   .transactions-layout label { display: block; margin-bottom: 6px; font-weight: 600; }
@@ -122,6 +174,7 @@
     .transactions-layout { flex-direction: column; }
     .transactions-layout .right-column { width: 100%; max-width: none; }
   }
+
 </style>
 
 <div class="transactions-layout">
@@ -220,7 +273,7 @@
   </fieldset>
 
   <div style="margin-top: 12px;">
-    <button type="submit">Salvar</button>
+    <button type="submit" style="padding: 14px 32px; font-size: 18px; font-weight: 600; background-color: #1976d2; color: white; border: none; border-radius: 6px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: background-color 0.2s;">Salvar</button>
   </div>
 
 </form>
@@ -251,11 +304,20 @@
         </div>
         <div>
           <label for="invoice_month" style="display: block; font-weight: 600; margin-bottom: 5px;">Mês:</label>
-          <input type="number" id="invoice_month" name="invoice_month" 
-                 value="{{ selected_month }}" 
-                 min="1" 
-                 max="12"
-                 style="width: 70px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+          <select id="invoice_month" name="invoice_month" style="padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; height: 30px">
+            <option value="1" {% if selected_month == 1 %}selected{% endif %}>Janeiro</option>
+            <option value="2" {% if selected_month == 2 %}selected{% endif %}>Fevereiro</option>
+            <option value="3" {% if selected_month == 3 %}selected{% endif %}>Março</option>
+            <option value="4" {% if selected_month == 4 %}selected{% endif %}>Abril</option>
+            <option value="5" {% if selected_month == 5 %}selected{% endif %}>Maio</option>
+            <option value="6" {% if selected_month == 6 %}selected{% endif %}>Junho</option>
+            <option value="7" {% if selected_month == 7 %}selected{% endif %}>Julho</option>
+            <option value="8" {% if selected_month == 8 %}selected{% endif %}>Agosto</option>
+            <option value="9" {% if selected_month == 9 %}selected{% endif %}>Setembro</option>
+            <option value="10" {% if selected_month == 10 %}selected{% endif %}>Outubro</option>
+            <option value="11" {% if selected_month == 11 %}selected{% endif %}>Novembro</option>
+            <option value="12" {% if selected_month == 12 %}selected{% endif %}>Dezembro</option>
+          </select>
         </div>
         <div>
           <button type="button" onclick="updateInvoiceMonth()" style="padding: 6px 12px; background-color: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Atualizar</button>
@@ -278,14 +340,14 @@
           if (yearNum >= 2020 && yearNum <= 2100 && monthNum >= 1 && monthNum <= 12) {
             window.location.href = '{% url "finance:transactions" %}?year=' + year + '&month=' + month;
           } else {
-            alert('Por favor, insira um ano entre 2020 e 2100 e um mês entre 1 e 12.');
+            alert('Por favor, insira um ano entre 2020 e 2100.');
           }
         } else {
-          alert('Por favor, preencha o ano e o mês.');
+          alert('Por favor, preencha o ano e selecione o mês.');
         }
       }
       
-      // Permitir atualizar ao pressionar Enter nos campos
+      // Permitir atualizar ao pressionar Enter no campo de ano ou ao mudar o mês
       document.getElementById('invoice_year').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -293,11 +355,8 @@
         }
       });
       
-      document.getElementById('invoice_month').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          updateInvoiceMonth();
-        }
+      document.getElementById('invoice_month').addEventListener('change', function() {
+        updateInvoiceMonth();
       });
     </script>
 
@@ -371,20 +430,20 @@
 <div style="margin-bottom: 15px;">
   <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
     <input type="checkbox" 
-           id="show_next_month" 
-           {% if show_next_month %}checked{% endif %}
-           onchange="toggleNextMonth()"
+           id="show_previous_month" 
+           {% if show_previous_month %}checked{% endif %}
+           onchange="togglePreviousMonth()"
            style="width: auto; margin: 0;">
-    <span>Mostrar mês seguinte</span>
+    <span>Mostrar mês anterior</span>
   </label>
   <script>
-    function toggleNextMonth() {
-      const checkbox = document.getElementById('show_next_month');
+    function togglePreviousMonth() {
+      const checkbox = document.getElementById('show_previous_month');
       const url = new URL(window.location.href);
       if (checkbox.checked) {
-        url.searchParams.set('next_month', '1');
+        url.searchParams.set('previous_month', '1');
       } else {
-        url.searchParams.delete('next_month');
+        url.searchParams.delete('previous_month');
       }
       window.location.href = url.toString();
     }
@@ -459,7 +518,15 @@
             {% endif %}
           </td>
           {% endif %}
-          <td>{{ t.description }}</td>
+          <td>
+            {{ t.description|default:"-" }}
+            {% if t.comment and t.comment|length > 0 %}
+              <span class="comment-icon" style="cursor: pointer; margin-left: 5px; vertical-align: middle; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #999; color: #999; font-size: 8px; font-weight: bold; font-style: italic; font-family: serif; line-height: 1;">
+                i
+                <span class="comment-tooltip">{{ t.comment }}</span>
+              </span>
+            {% endif %}
+          </td>
           <td>
             <a href="{% url 'finance:edit_transaction' t.id %}?next=transactions" style="margin-right: 8px;">Editar</a>
             <form method="post" action="{% url 'finance:delete_transaction' t.id %}" style="display: inline;" onsubmit="return confirm('Tem certeza que deseja deletar este lançamento?');">
@@ -898,34 +965,7 @@
                     display: false
                   },
                   tooltip: {
-                    callbacks: {
-                      label: function(context) {
-                        const datasetLabel = context.dataset.label || '';
-                        const value = context.parsed.y;
-                        return `${datasetLabel}: R$ ${value.toFixed(2).replace('.', ',')}`;
-                      },
-                      afterLabel: function(context) {
-                        // Mostrar informações adicionais apenas no último dataset (barra superior)
-                        if (context.datasetIndex === 1) {
-                          const tooltipBudget = budget;
-                          const tooltipNewSpentTotal = newSpentTotal;
-                          const tooltipNewPercentage = tooltipBudget > 0 ? (tooltipNewSpentTotal / tooltipBudget) * 100 : 0;
-                          let tooltipItems = [
-                            `Total: R$ ${tooltipNewSpentTotal.toFixed(2).replace('.', ',')}`,
-                            `Orçado: R$ ${tooltipBudget.toFixed(2).replace('.', ',')}`
-                          ];
-                          
-                          if (tooltipBudget > 0) {
-                            const difference = tooltipBudget - tooltipNewSpentTotal;
-                            tooltipItems.push(`Diferença: R$ ${difference.toFixed(2).replace('.', ',')}`);
-                            tooltipItems.push(`Porcentagem: ${tooltipNewPercentage.toFixed(1)}%`);
-                          }
-                          
-                          return tooltipItems;
-                        }
-                        return [];
-                      }
-                    }
+                    enabled: false
                   }
                 }
               }

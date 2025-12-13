@@ -376,16 +376,16 @@ def transactions_view(request):
     # Usa sessão específica para manter o valor entre recarregamentos
     year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='shared_')
     
-    # Verificar se deve mostrar mês seguinte
-    show_next_month = request.GET.get('next_month') == '1'
-    if show_next_month:
-        # Calcular mês seguinte
-        if month == 12:
-            filter_year = year + 1
-            filter_month = 1
+    # Verificar se deve mostrar mês anterior
+    show_previous_month = request.GET.get('previous_month') == '1'
+    if show_previous_month:
+        # Calcular mês anterior
+        if month == 1:
+            filter_year = year - 1
+            filter_month = 12
         else:
             filter_year = year
-            filter_month = month + 1
+            filter_month = month - 1
     else:
         filter_year = year
         filter_month = month
@@ -458,7 +458,7 @@ def transactions_view(request):
         'selected_month': month,
         'filter_year': filter_year,
         'filter_month': filter_month,
-        'show_next_month': show_next_month,
+        'show_previous_month': show_previous_month,
         'payment_method': payment_method,
         'owner_tag_filter': owner_tag_filter,
         'is_bradesco_selected': is_bradesco_selected,
@@ -1646,9 +1646,12 @@ def all_logs_view(request):
 def dashboard_view(request):
     """
     Dashboard com visão geral do sistema financeiro.
-    Permite filtrar por mês/ano.
+    Permite filtrar por mês/ano e alternar entre visualização mensal e anual.
     """
     user = request.user
+    
+    # Obter modo de visualização (mensal ou anual)
+    view_mode = request.GET.get('view_mode', 'monthly')
     
     # Obter ano/mês dos parâmetros GET ou usar sessão compartilhada (com Dashboard, Lançamentos e Relatórios)
     year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='shared_')
@@ -1659,179 +1662,380 @@ def dashboard_view(request):
         total=Coalesce(Sum('balance'), Value(0), output_field=DecimalField())
     )['total']
     
-    # Receitas e despesas do mês selecionado
-    month_income = Transaction.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month,
-        type=Transaction.TYPE_INCOME
-    ).aggregate(
-        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
-    )['total']
-    
-    month_expenses = Transaction.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month,
-        type=Transaction.TYPE_EXPENSE
-    ).aggregate(
-        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
-    )['total']
-    
-    month_balance = month_income - month_expenses
-    
-    # Quantidade de transações no mês selecionado
-    month_transactions_count = Transaction.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month
-    ).count()
-    
-    # Média diária de gastos (despesas do mês / número de dias no mês)
-    # Usar o número de dias do mês selecionado
-    days_in_month = calendar.monthrange(year, month)[1]
-    if days_in_month > 0:
-        daily_average = month_expenses / Decimal(days_in_month)
-    else:
-        daily_average = Decimal('0')
-    
-    # Calcular orçamentos do mês
-    budgets_qs = MonthlyBudget.objects.filter(
-        year=year,
-        month=month
-    ).select_related('subcategory', 'subcategory__category').values(
-        'subcategory__category__is_income',
-        'amount'
-    )
-    
-    income_budget = Decimal('0')
-    expense_budget = Decimal('0')
-    
-    for budget in budgets_qs:
-        if budget['subcategory__category__is_income']:
-            income_budget += budget['amount']
-        else:
-            expense_budget += budget['amount']
-    
-    # Saldo Planejado (Receitas Orçadas - Despesas Orçadas)
-    budget_diff = income_budget - expense_budget
-    
-    # Calcular receitas e despesas PAGAS para o Saldo Projetado
-    paid_income = Transaction.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month,
-        type=Transaction.TYPE_INCOME,
-        is_paid=True
-    ).aggregate(
-        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
-    )['total'] or Decimal('0')
-    
-    paid_expenses = Transaction.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month,
-        type=Transaction.TYPE_EXPENSE,
-        is_paid=True
-    ).aggregate(
-        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
-    )['total'] or Decimal('0')
-    
-    # Saldo Projetado = Saldo Atual + Receitas Pagas - Despesas Pagas + Saldo Planejado
-    projected_balance = total_balance + paid_income - paid_expenses + budget_diff
-    
-    # Percentuais de planejamento
-    income_planned_percent = (float(month_income) / float(income_budget) * 100) if income_budget > 0 else 0
-    expense_planned_percent = (float(month_expenses) / float(expense_budget) * 100) if expense_budget > 0 else 0
-    
-    # Todas as faturas do mês selecionado (pagas e pendentes)
-    credit_cards = CreditCard.objects.all().order_by('name')
-    all_invoices = []
-    
-    for card in credit_cards:
-        # Buscar todas as transações do cartão no mês selecionado
-        card_transactions = Transaction.objects.filter(
-            credit_card=card,
+    if view_mode == 'annual':
+        # ========== DADOS ANUAIS ==========
+        # Receitas e despesas do ano selecionado
+        year_income = Transaction.objects.filter(
             payment_date__year=year,
-            payment_date__month=month,
-            type=Transaction.TYPE_EXPENSE
-        )
-        
-        total_transactions = card_transactions.aggregate(
+            type=Transaction.TYPE_INCOME
+        ).aggregate(
             total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
         )['total']
         
-        # Verificar se todas estão pagas
-        unpaid_count = card_transactions.filter(is_paid=False).count()
-        total_count = card_transactions.count()
+        year_expenses = Transaction.objects.filter(
+            payment_date__year=year,
+            type=Transaction.TYPE_EXPENSE
+        ).aggregate(
+            total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+        )['total']
         
-        if total_transactions > 0:
-            all_invoices.append({
-                'card_name': card.name,
-                'year': year,
-                'month': month,
-                'total': total_transactions,
-                'is_paid': unpaid_count == 0,  # True se todas estão pagas
-                'unpaid_count': unpaid_count,
-                'total_count': total_count
+        year_balance = year_income - year_expenses
+        
+        # Média mensal
+        year_avg_income = year_income / Decimal('12')
+        year_avg_expenses = year_expenses / Decimal('12')
+        
+        # Quantidade de transações no ano
+        year_transactions_count = Transaction.objects.filter(
+            payment_date__year=year
+        ).count()
+        
+        # Calcular orçamentos do ano (soma de todos os meses)
+        budgets_qs = MonthlyBudget.objects.filter(
+            year=year
+        ).select_related('subcategory', 'subcategory__category').values(
+            'subcategory__category__is_income',
+            'amount'
+        )
+        
+        income_budget = Decimal('0')
+        expense_budget = Decimal('0')
+        
+        for budget in budgets_qs:
+            if budget['subcategory__category__is_income']:
+                income_budget += budget['amount']
+            else:
+                expense_budget += budget['amount']
+        
+        budget_diff = income_budget - expense_budget
+        
+        # Receitas/Despesas por mês para gráfico (dados gerais e detalhados por categoria/subcategoria)
+        monthly_income_expenses = []
+        monthly_data_by_category = {}  # Para armazenar dados por categoria
+        monthly_data_by_subcategory = {}  # Para armazenar dados por subcategoria
+        month_names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+        
+        # Buscar todas as categorias e subcategorias para o filtro
+        all_categories = Category.objects.all().order_by('is_income', 'name')
+        all_subcategories = Subcategory.objects.select_related('category').all().order_by('category__name', 'name')
+        
+        categories_for_filter = []
+        for cat in all_categories:
+            categories_for_filter.append({
+                'id': cat.id,
+                'name': cat.name,
+                'is_income': cat.is_income,
+                'type': 'category'
             })
-    
-    # Últimas 10 transações do mês selecionado
-    recent_transactions = Transaction.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month
-    ).select_related('subcategory', 'subcategory__category', 'account', 'credit_card')\
-        .order_by('-date', '-id')[:10]
-    
-    # Dados para o gráfico: subcategorias com valores gastos e orçados
-    subcategories_chart_data = []
-    
-    # Buscar todas as subcategorias
-    exp_subcategories = Subcategory.objects.select_related('category').filter(
-        category__is_income=False  #Somente Despesas
-    ).order_by('category__name', 'name')
-    
-    for subcat in exp_subcategories:
-        # Valor gasto/recebido no mês
-        spent = Transaction.objects.filter(
+        
+        subcategories_for_filter = []
+        for subcat in all_subcategories:
+            subcategories_for_filter.append({
+                'id': subcat.id,
+                'name': subcat.name,
+                'category_id': subcat.category.id,
+                'category_name': subcat.category.name,
+                'is_income': subcat.category.is_income,
+                'full_name': f"{subcat.category.name} - {subcat.name}",
+                'type': 'subcategory'
+            })
+        
+        # Dados gerais (sem filtro)
+        for m in range(1, 13):
+            month_inc = Transaction.objects.filter(
+                payment_date__year=year,
+                payment_date__month=m,
+                type=Transaction.TYPE_INCOME
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            month_exp = Transaction.objects.filter(
+                payment_date__year=year,
+                payment_date__month=m,
+                type=Transaction.TYPE_EXPENSE
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            monthly_income_expenses.append({
+                'month': month_names[m-1],
+                'income': float(month_inc),
+                'expenses': float(month_exp),
+            })
+        
+        # Dados por categoria (para filtro)
+        for cat in all_categories:
+            cat_key = f"category_{cat.id}"
+            monthly_data_by_category[cat_key] = []
+            for m in range(1, 13):
+                month_amount = Transaction.objects.filter(
+                    payment_date__year=year,
+                    payment_date__month=m,
+                    subcategory__category=cat
+                ).aggregate(
+                    total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+                )['total'] or Decimal('0')
+                
+                monthly_data_by_category[cat_key].append({
+                    'month': month_names[m-1],
+                    'income': float(month_amount) if cat.is_income else 0.0,
+                    'expenses': float(month_amount) if not cat.is_income else 0.0,
+                })
+        
+        # Dados por subcategoria (para filtro)
+        for subcat in all_subcategories:
+            subcat_key = f"subcategory_{subcat.id}"
+            monthly_data_by_subcategory[subcat_key] = []
+            for m in range(1, 13):
+                month_amount = Transaction.objects.filter(
+                    payment_date__year=year,
+                    payment_date__month=m,
+                    subcategory=subcat
+                ).aggregate(
+                    total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+                )['total'] or Decimal('0')
+                
+                monthly_data_by_subcategory[subcat_key].append({
+                    'month': month_names[m-1],
+                    'income': float(month_amount) if subcat.category.is_income else 0.0,
+                    'expenses': float(month_amount) if not subcat.category.is_income else 0.0,
+                })
+        
+        # Gráfico de gastos por subcategoria (total anual)
+        subcategories_chart_data = []
+        exp_subcategories = Subcategory.objects.select_related('category').filter(
+            category__is_income=False
+        ).order_by('category__name', 'name')
+        
+        for subcat in exp_subcategories:
+            # Valor gasto no ano
+            spent = Transaction.objects.filter(
+                payment_date__year=year,
+                subcategory=subcat
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            # Valor orçado no ano (soma de todos os meses)
+            budget = MonthlyBudget.objects.filter(
+                year=year,
+                subcategory=subcat
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            # Só incluir se tiver gasto ou orçado
+            if spent > 0 or budget > 0:
+                subcategories_chart_data.append({
+                    'name': f"{subcat.category.name} - {subcat.name}",
+                    'spent': float(spent),
+                    'budget': float(budget),
+                })
+        
+        # Ordenar por valor gasto (maior primeiro)
+        subcategories_chart_data.sort(key=lambda x: x['spent'], reverse=True)
+        # Limitar aos top 20 para não sobrecarregar o gráfico
+        subcategories_chart_data = subcategories_chart_data[:20]
+        
+        context = {
+            'year': year,
+            'month': month,
+            'view_mode': 'annual',
+            'total_balance': total_balance,
+            'year_income': year_income,
+            'year_expenses': year_expenses,
+            'year_balance': year_balance,
+            'year_avg_income': year_avg_income,
+            'year_avg_expenses': year_avg_expenses,
+            'year_transactions_count': year_transactions_count,
+            'income_budget': income_budget,
+            'expense_budget': expense_budget,
+            'budget_diff': budget_diff,
+            'monthly_income_expenses': json.dumps(monthly_income_expenses),
+            'monthly_data_by_category': json.dumps(monthly_data_by_category),
+            'monthly_data_by_subcategory': json.dumps(monthly_data_by_subcategory),
+            'categories_for_filter': json.dumps(categories_for_filter),
+            'subcategories_for_filter': json.dumps(subcategories_for_filter),
+            'subcategories_chart_data': json.dumps(subcategories_chart_data),
+        }
+    else:
+        # ========== DADOS MENSAIS (CÓDIGO ORIGINAL) ==========
+        # Receitas e despesas do mês selecionado
+        month_income = Transaction.objects.filter(
             payment_date__year=year,
             payment_date__month=month,
-            subcategory=subcat
+            type=Transaction.TYPE_INCOME
         ).aggregate(
             total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
-        )['total'] or Decimal('0')
+        )['total']
         
-        # Valor orçado
-        budget = MonthlyBudget.objects.filter(
+        month_expenses = Transaction.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month,
+            type=Transaction.TYPE_EXPENSE
+        ).aggregate(
+            total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+        )['total']
+        
+        month_balance = month_income - month_expenses
+        
+        # Quantidade de transações no mês selecionado
+        month_transactions_count = Transaction.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month
+        ).count()
+        
+        # Média diária de gastos (despesas do mês / número de dias no mês)
+        # Usar o número de dias do mês selecionado
+        days_in_month = calendar.monthrange(year, month)[1]
+        if days_in_month > 0:
+            daily_average = month_expenses / Decimal(days_in_month)
+        else:
+            daily_average = Decimal('0')
+        
+        # Calcular orçamentos do mês
+        budgets_qs = MonthlyBudget.objects.filter(
             year=year,
-            month=month,
-            subcategory=subcat
+            month=month
+        ).select_related('subcategory', 'subcategory__category').values(
+            'subcategory__category__is_income',
+            'amount'
+        )
+        
+        income_budget = Decimal('0')
+        expense_budget = Decimal('0')
+        
+        for budget in budgets_qs:
+            if budget['subcategory__category__is_income']:
+                income_budget += budget['amount']
+            else:
+                expense_budget += budget['amount']
+        
+        # Saldo Planejado (Receitas Orçadas - Despesas Orçadas)
+        budget_diff = income_budget - expense_budget
+        
+        # Calcular receitas e despesas PAGAS para o Saldo Projetado
+        paid_income = Transaction.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month,
+            type=Transaction.TYPE_INCOME,
+            is_paid=True
         ).aggregate(
             total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
         )['total'] or Decimal('0')
         
-        # Só incluir se tiver gasto ou orçado
-        if spent > 0 or budget > 0:
-            subcategories_chart_data.append({
-                'name': f"{subcat.category.name} - {subcat.name}",
-                'spent': float(spent),
-                'budget': float(budget),
-            })
+        paid_expenses = Transaction.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month,
+            type=Transaction.TYPE_EXPENSE,
+            is_paid=True
+        ).aggregate(
+            total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+        )['total'] or Decimal('0')
+        
+        # Saldo Projetado = Saldo Atual + Receitas Pagas - Despesas Pagas + Saldo Planejado
+        projected_balance = total_balance + paid_income - paid_expenses + budget_diff
+        
+        # Percentuais de planejamento
+        income_planned_percent = (float(month_income) / float(income_budget) * 100) if income_budget > 0 else 0
+        expense_planned_percent = (float(month_expenses) / float(expense_budget) * 100) if expense_budget > 0 else 0
+        
+        # Todas as faturas do mês selecionado (pagas e pendentes)
+        credit_cards = CreditCard.objects.all().order_by('name')
+        all_invoices = []
+        
+        for card in credit_cards:
+            # Buscar todas as transações do cartão no mês selecionado
+            card_transactions = Transaction.objects.filter(
+                credit_card=card,
+                payment_date__year=year,
+                payment_date__month=month,
+                type=Transaction.TYPE_EXPENSE
+            )
+            
+            total_transactions = card_transactions.aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total']
+            
+            # Verificar se todas estão pagas
+            unpaid_count = card_transactions.filter(is_paid=False).count()
+            total_count = card_transactions.count()
+            
+            if total_transactions > 0:
+                all_invoices.append({
+                    'card_name': card.name,
+                    'year': year,
+                    'month': month,
+                    'total': total_transactions,
+                    'is_paid': unpaid_count == 0,  # True se todas estão pagas
+                    'unpaid_count': unpaid_count,
+                    'total_count': total_count
+                })
+        
+        # Últimas 10 transações do mês selecionado
+        recent_transactions = Transaction.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month
+        ).select_related('subcategory', 'subcategory__category', 'account', 'credit_card')\
+            .order_by('-date', '-id')[:10]
+        
+        # Dados para o gráfico: subcategorias com valores gastos e orçados
+        subcategories_chart_data = []
+        
+        # Buscar todas as subcategorias
+        exp_subcategories = Subcategory.objects.select_related('category').filter(
+            category__is_income=False  #Somente Despesas
+        ).order_by('category__name', 'name')
+        
+        for subcat in exp_subcategories:
+            # Valor gasto/recebido no mês
+            spent = Transaction.objects.filter(
+                payment_date__year=year,
+                payment_date__month=month,
+                subcategory=subcat
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            # Valor orçado
+            budget = MonthlyBudget.objects.filter(
+                year=year,
+                month=month,
+                subcategory=subcat
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            # Só incluir se tiver gasto ou orçado
+            if spent > 0 or budget > 0:
+                subcategories_chart_data.append({
+                    'name': f"{subcat.category.name} - {subcat.name}",
+                    'spent': float(spent),
+                    'budget': float(budget),
+                })
+        
+        context = {
+            'year': year,
+            'month': month,
+            'view_mode': 'monthly',
+            'total_balance': total_balance,
+            'month_income': month_income,
+            'month_expenses': month_expenses,
+            'month_balance': month_balance,
+            'month_transactions_count': month_transactions_count,
+            'daily_average': daily_average,
+            'projected_balance': projected_balance,
+            'all_invoices': all_invoices,
+            'recent_transactions': recent_transactions,
+            'income_planned_percent': income_planned_percent,
+            'expense_planned_percent': expense_planned_percent, 
+            'budget_diff': budget_diff,
+            'income_budget': income_budget,
+            'expense_budget': expense_budget,
+            'subcategories_chart_data': json.dumps(subcategories_chart_data),
+        }
     
-    context = {
-        'year': year,
-        'month': month,
-        'total_balance': total_balance,
-        'month_income': month_income,
-        'month_expenses': month_expenses,
-        'month_balance': month_balance,
-        'month_transactions_count': month_transactions_count,
-        'daily_average': daily_average,
-        'projected_balance': projected_balance,
-        'all_invoices': all_invoices,
-        'recent_transactions': recent_transactions,
-        'income_planned_percent': income_planned_percent,
-        'expense_planned_percent': expense_planned_percent, 
-        'budget_diff': budget_diff,
-        'income_budget': income_budget,
-        'expense_budget': expense_budget,
-        'subcategories_chart_data': json.dumps(subcategories_chart_data),
-    }
     return render(request, 'finance/dashboard.html', context)
 
 

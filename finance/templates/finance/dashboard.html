@@ -4,33 +4,50 @@
 {% block content %}
 <h1>Dashboard</h1>
 
-<!-- Filtros de Período -->
+<!-- Filtros de Período e Toggle -->
 <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
-  <form method="get" action="">
-    <div style="display: flex; gap: 15px; align-items: flex-end;">
-      <div>
-        <label for="id_year" style="display: block; font-weight: 600; margin-bottom: 5px;">Ano:</label>
-        <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100" style="padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+  <form method="get" action="" id="dashboardForm">
+    <div style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; justify-content: space-between;">
+      <div style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+        <div>
+          <label for="id_year" style="display: block; font-weight: 600; margin-bottom: 5px;">Ano:</label>
+          <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100" style="padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+        </div>
+        <div id="monthSelector" style="{% if view_mode == 'annual' %}display: none;{% endif %}">
+          <label for="id_month" style="display: block; font-weight: 600; margin-bottom: 5px;">Mês:</label>
+          <select id="id_month" name="month" style="padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+            <option value="1" {% if month == 1 %}selected{% endif %}>Janeiro</option>
+            <option value="2" {% if month == 2 %}selected{% endif %}>Fevereiro</option>
+            <option value="3" {% if month == 3 %}selected{% endif %}>Março</option>
+            <option value="4" {% if month == 4 %}selected{% endif %}>Abril</option>
+            <option value="5" {% if month == 5 %}selected{% endif %}>Maio</option>
+            <option value="6" {% if month == 6 %}selected{% endif %}>Junho</option>
+            <option value="7" {% if month == 7 %}selected{% endif %}>Julho</option>
+            <option value="8" {% if month == 8 %}selected{% endif %}>Agosto</option>
+            <option value="9" {% if month == 9 %}selected{% endif %}>Setembro</option>
+            <option value="10" {% if month == 10 %}selected{% endif %}>Outubro</option>
+            <option value="11" {% if month == 11 %}selected{% endif %}>Novembro</option>
+            <option value="12" {% if month == 12 %}selected{% endif %}>Dezembro</option>
+          </select>
+        </div>
+        <div>
+          <button type="submit" style="padding: 6px 12px; font-size: 14px;">Aplicar</button>
+        </div>
       </div>
-      <div>
-        <label for="id_month" style="display: block; font-weight: 600; margin-bottom: 5px;">Mês:</label>
-        <select id="id_month" name="month" style="padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
-          <option value="1" {% if month == 1 %}selected{% endif %}>Janeiro</option>
-          <option value="2" {% if month == 2 %}selected{% endif %}>Fevereiro</option>
-          <option value="3" {% if month == 3 %}selected{% endif %}>Março</option>
-          <option value="4" {% if month == 4 %}selected{% endif %}>Abril</option>
-          <option value="5" {% if month == 5 %}selected{% endif %}>Maio</option>
-          <option value="6" {% if month == 6 %}selected{% endif %}>Junho</option>
-          <option value="7" {% if month == 7 %}selected{% endif %}>Julho</option>
-          <option value="8" {% if month == 8 %}selected{% endif %}>Agosto</option>
-          <option value="9" {% if month == 9 %}selected{% endif %}>Setembro</option>
-          <option value="10" {% if month == 10 %}selected{% endif %}>Outubro</option>
-          <option value="11" {% if month == 11 %}selected{% endif %}>Novembro</option>
-          <option value="12" {% if month == 12 %}selected{% endif %}>Dezembro</option>
-        </select>
-      </div>
-      <div>
-        <button type="submit" style="padding: 6px 12px;">Aplicar</button>
+      
+      <!-- Toggle de Visualização -->
+      <div style="display: flex; align-items: flex-end; gap: 8px;">
+        <label style="display: flex; flex-direction: column; gap: 4px; cursor: pointer;">
+          <span style="font-weight: 600; font-size: 12px; color: #555;">Visualização:</span>
+          <div class="view-toggle-container">
+            <input type="hidden" name="view_mode" id="view_mode_input" value="{{ view_mode|default:'monthly' }}">
+            <div class="view-toggle-switch {% if view_mode == 'annual' %}active-annual{% else %}active-monthly{% endif %}" id="viewToggle">
+              <span class="toggle-label monthly-label {% if view_mode != 'annual' %}active{% endif %}">Mensal</span>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label annual-label {% if view_mode == 'annual' %}active{% endif %}">Anual</span>
+            </div>
+          </div>
+        </label>
       </div>
     </div>
   </form>
@@ -148,9 +165,186 @@
   #id_month {
     height: 30px;
   }
+  
+  /* Estilos para o Toggle de Visualização */
+  .view-toggle-container {
+    position: relative;
+  }
+  
+  .view-toggle-switch {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 110px;
+    height: 26px;
+    background-color: #e0e0e0;
+    border-radius: 13px;
+    padding: 1px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .view-toggle-switch.active-monthly {
+    background-color: #4CAF50;
+  }
+  
+  .view-toggle-switch.active-annual {
+    background-color: #2196F3;
+  }
+  
+  .toggle-slider {
+    position: absolute;
+    width: 52px;
+    height: 24px;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease;
+    z-index: 1;
+  }
+  
+  .view-toggle-switch.active-monthly .toggle-slider {
+    transform: translateX(0);
+  }
+  
+  .view-toggle-switch.active-annual .toggle-slider {
+    transform: translateX(56px);
+  }
+  
+  .toggle-label {
+    position: relative;
+    flex: 1;
+    text-align: center;
+    font-weight: 500;
+    font-size: 11px;
+    z-index: 2;
+    transition: color 0.3s ease;
+    color: #666;
+  }
+  
+  .toggle-label.active {
+    color: #000000 !important;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+  
+  .toggle-label.monthly-label {
+    padding-left: 2px;
+  }
+  
+  .toggle-label.annual-label {
+    padding-right: 2px;
+  }
+  
+  .view-toggle-switch:hover {
+    opacity: 0.9;
+  }
 </style>
 
-<!-- Resumo Financeiro -->
+{% if view_mode == 'annual' %}
+  <!-- ========== VISUALIZAÇÃO ANUAL ========== -->
+  
+  <!-- Resumo Financeiro Anual -->
+  <div class="dashboard-grid">
+    <div class="dashboard-card">
+      <h2>💰 Resumo Financeiro Anual</h2>
+      <div class="metric">
+        <span class="metric-label">Saldo Atual</span>
+        <span class="metric-value neutral">R$ {{ total_balance|floatformat:2 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Receitas do Ano</span>
+        <span class="metric-value positive">R$ {{ year_income|floatformat:2 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Despesas do Ano</span>
+        <span class="metric-value negative">- R$ {{ year_expenses|floatformat:2 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Saldo do Ano</span>
+        <span class="metric-value {% if year_balance >= 0 %}positive{% else %}negative{% endif %}">
+          R$ {{ year_balance|floatformat:2 }}
+        </span>
+      </div>
+    </div>
+
+    <div class="dashboard-card">
+      <h2>📊 Médias Mensais</h2>
+      <div class="metric">
+        <span class="metric-label">Média Mensal de Receitas</span>
+        <span class="metric-value positive">R$ {{ year_avg_income|floatformat:2 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Média Mensal de Despesas</span>
+        <span class="metric-value negative">- R$ {{ year_avg_expenses|floatformat:2 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Total de Transações</span>
+        <span class="metric-value neutral">{{ year_transactions_count }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Saldo Planejado (Ano)</span>
+        <span class="metric-value {% if budget_diff >= 0 %}positive{% else %}negative{% endif %}">
+          R$ {{ budget_diff|floatformat:2 }}
+        </span>
+      </div>
+    </div>
+
+    <div class="dashboard-card">
+      <h2>📈 Orçamentos Anuais</h2>
+      <div class="metric">
+        <span class="metric-label">Receitas Orçadas (Ano)</span>
+        <span class="metric-value positive">R$ {{ income_budget|floatformat:2 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Despesas Orçadas (Ano)</span>
+        <span class="metric-value negative">- R$ {{ expense_budget|floatformat:2 }}</span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Receitas Realizadas vs Orçadas</span>
+        <span class="metric-value {% if income_budget > 0 and year_income <= income_budget %}positive{% else %}negative{% endif %}">
+          {% if income_budget > 0 %}{{ year_income|floatformat:0 }} / {{ income_budget|floatformat:0 }}{% else %}N/A{% endif %}
+        </span>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Despesas Realizadas vs Orçadas</span>
+        <span class="metric-value {% if expense_budget > 0 and year_expenses <= expense_budget %}positive{% else %}negative{% endif %}">
+          {% if expense_budget > 0 %}{{ year_expenses|floatformat:0 }} / {{ expense_budget|floatformat:0 }}{% else %}N/A{% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráfico de Receitas/Despesas por Mês -->
+  <div class="dashboard-card" style="margin-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <h2 id="monthlyChartTitle" style="margin: 0;">📊 Receitas e Despesas por Mês ({{ year }})</h2>
+      <div style="position: relative; display: inline-block;">
+        <button type="button" id="filterCategoryBtn" style="padding: 6px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #000;">
+          <span id="filterCategoryText">Filtrar por categoria/subcategoria</span>
+          <span style="font-size: 10px;">▼</span>
+        </button>
+        <div id="filterCategoryDropdown" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 280px; max-height: 400px; overflow-y: auto; padding: 8px;">
+          <div style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 14px;">Selecione categoria ou subcategoria:</div>
+          <div id="filterCategoryList" style="padding: 4px 0;">
+            <!-- Será preenchido via JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+    <canvas id="monthlyIncomeExpensesChart" style="max-height: 400px;"></canvas>
+  </div>
+
+  <!-- Gráfico de Gastos por Subcategoria (Anual) -->
+  <div class="dashboard-card" style="margin-bottom: 30px;">
+    <h2>📊 Gasto Total por Subcategoria ({{ year }})</h2>
+    <canvas id="annualSubcategoriesChart" style="max-height: 500px;"></canvas>
+  </div>
+
+{% else %}
+  <!-- ========== VISUALIZAÇÃO MENSUAL (ORIGINAL) ========== -->
+  
+  <!-- Resumo Financeiro -->
 <div class="dashboard-grid">
   <div class="dashboard-card">
     <h2>💰 Resumo Financeiro</h2>
@@ -229,24 +423,46 @@
 
 <!-- Gráfico de Subcategorias -->
 <div class="dashboard-card" style="margin-bottom: 30px;">
-  <h2>📊 Gasto vs Orçado por Subcategoria</h2>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+    <h2 style="margin: 0;">📊 Gasto vs Orçado por Subcategoria</h2>
+    <div style="position: relative; display: inline-block;">
+      <button type="button" id="excludeSubcategoriesBtn" style="padding: 6px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #000;">
+        Excluir subcategorias
+        <span id="excludeSubcategoriesCount" style="background-color: #1976d2; color: white; border-radius: 12px; padding: 2px 6px; font-size: 12px; min-width: 18px; text-align: center; display: none;">0</span>
+        <span style="font-size: 10px;">▼</span>
+      </button>
+      <div id="excludeSubcategoriesDropdown" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 250px; max-height: 400px; overflow-y: auto; padding: 8px;">
+        <div style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 14px;">Selecione subcategorias para excluir:</div>
+        <div style="padding: 8px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end;">
+          <button type="button" id="clearExclusionsBtn" style="padding: 4px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; cursor: pointer; color: #000;">Limpar</button>
+        </div>
+        <div id="excludeSubcategoriesList" style="padding: 4px 0;">
+          <!-- Será preenchido via JavaScript -->
+        </div>
+      </div>
+    </div>
+  </div>
   <canvas id="subcategoriesChart" style="max-height: 500px;"></canvas>
   <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0; display: flex; gap: 20px; flex-wrap: wrap; align-items: center; font-size: 12px; color: #666;">
     <div style="display: flex; align-items: center; gap: 8px;">
       <div style="width: 30px; height: 2px; border-top: 2px dashed rgba(46, 125, 50, 0.8);"></div>
-      <span>Linha tracejada verde = Valor Orçado (referência)</span>
+      <span>Valor Orçado (referência)</span>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
       <div style="width: 20px; height: 12px; background-color: rgba(33, 150, 243, 0.7); border: 2px solid rgba(33, 150, 243, 1);"></div>
-      <span>Azul = &lt; 85% do orçado</span>
+      <span>&lt; 85% do orçado</span>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
       <div style="width: 20px; height: 12px; background-color: rgba(255, 152, 0, 0.7); border: 2px solid rgba(255, 152, 0, 1);"></div>
-      <span>Laranja = 85% - 100% do orçado</span>
+      <span>85% - 99% do orçado</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="width: 20px; height: 12px; background-color: rgba(255, 193, 7, 0.7); border: 2px solid rgba(255, 193, 7, 1);"></div>
+      <span>100% do orçado</span>
     </div>
     <div style="display: flex; align-items: center; gap: 8px;">
       <div style="width: 20px; height: 12px; background-color: rgba(198, 40, 40, 0.7); border: 2px solid rgba(198, 40, 40, 1);"></div>
-      <span>Vermelho = &gt; 100% do orçado ou sem orçamento</span>
+      <span>&gt; 100% do orçado ou sem orçamento</span>
     </div>
   </div>
 </div>
@@ -274,18 +490,646 @@
   {% endif %}
 </div>
 
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-  // Dados do gráfico
-  const chartData = {{ subcategories_chart_data|safe }};
+  // ========== TOGGLE MENSAL/ANUAL ==========
+  document.addEventListener('DOMContentLoaded', function() {
+    const toggle = document.getElementById('viewToggle');
+    const viewModeInput = document.getElementById('view_mode_input');
+    const monthSelector = document.getElementById('monthSelector');
+    
+    if (toggle) {
+      toggle.addEventListener('click', function() {
+        const currentMode = viewModeInput.value;
+        const newMode = currentMode === 'monthly' ? 'annual' : 'monthly';
+        viewModeInput.value = newMode;
+        
+        // Atualizar classes CSS do toggle
+        const monthlyLabel = toggle.querySelector('.monthly-label');
+        const annualLabel = toggle.querySelector('.annual-label');
+        
+        if (newMode === 'annual') {
+          toggle.classList.remove('active-monthly');
+          toggle.classList.add('active-annual');
+          if (monthlyLabel) monthlyLabel.classList.remove('active');
+          if (annualLabel) annualLabel.classList.add('active');
+          if (monthSelector) monthSelector.style.display = 'none';
+        } else {
+          toggle.classList.remove('active-annual');
+          toggle.classList.add('active-monthly');
+          if (annualLabel) annualLabel.classList.remove('active');
+          if (monthlyLabel) monthlyLabel.classList.add('active');
+          if (monthSelector) monthSelector.style.display = 'block';
+        }
+        
+        // Submeter o formulário
+        document.getElementById('dashboardForm').submit();
+      });
+    }
+  });
+
+{% if view_mode == 'annual' %}
+  // ========== GRÁFICOS PARA VISUALIZAÇÃO ANUAL ==========
   
-  if (chartData && chartData.length > 0) {
+  // ========== GRÁFICO DE RECEITAS/DESPESAS POR MÊS COM FILTRO ==========
+  const originalMonthlyData = {{ monthly_income_expenses|safe }};
+  const monthlyDataByCategory = {{ monthly_data_by_category|safe }};
+  const monthlyDataBySubcategory = {{ monthly_data_by_subcategory|safe }};
+  const categoriesForFilter = {{ categories_for_filter|safe }};
+  const subcategoriesForFilter = {{ subcategories_for_filter|safe }};
+  const currentYear = {{ year }};
+  const originalChartTitle = '📊 Receitas e Despesas por Mês (' + currentYear + ')';
+  let monthlyChart = null;
+  let currentFilter = null; // 'category_X', 'subcategory_X', ou null
+  let currentFilterName = null; // Nome da categoria/subcategoria selecionada
+  
+  // Função para criar/atualizar o gráfico mensal
+  function updateMonthlyChart(data) {
+    if (!data || data.length === 0) return;
+    
+    const monthlyCtx = document.getElementById('monthlyIncomeExpensesChart');
+    if (!monthlyCtx) return;
+    
+    const monthLabels = data.map(item => item.month);
+    const incomeData = data.map(item => item.income);
+    const expensesData = data.map(item => item.expenses);
+    
+    // Destruir gráfico existente se houver
+    if (monthlyChart) {
+      monthlyChart.destroy();
+    }
+    
+    monthlyChart = new Chart(monthlyCtx.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: monthLabels,
+        datasets: [
+          {
+            label: 'Receitas',
+            data: incomeData,
+            borderColor: 'rgba(46, 125, 50, 1)',
+            backgroundColor: 'rgba(46, 125, 50, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4
+          },
+          {
+            label: 'Despesas',
+            data: expensesData,
+            borderColor: 'rgba(198, 40, 40, 1)',
+            backgroundColor: 'rgba(198, 40, 40, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.dataset.label + ': R$ ' + context.parsed.y.toFixed(2);
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: function(value) {
+                return 'R$ ' + value.toFixed(0);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  
+  // Função para popular o dropdown de filtro
+  function populateCategoryFilter() {
+    const container = document.getElementById('filterCategoryList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    // Adicionar opção "Todas" (sem filtro)
+    const allOption = document.createElement('label');
+    allOption.style.display = 'block';
+    allOption.style.padding = '6px 8px';
+    allOption.style.cursor = 'pointer';
+    allOption.style.fontSize = '14px';
+    allOption.style.userSelect = 'none';
+    
+    allOption.onmouseover = function() {
+      this.style.backgroundColor = '#f5f5f5';
+    };
+    allOption.onmouseout = function() {
+      this.style.backgroundColor = 'transparent';
+    };
+    
+    const allRadio = document.createElement('input');
+    allRadio.type = 'radio';
+    allRadio.name = 'categoryFilter';
+    allRadio.value = '';
+    allRadio.style.marginRight = '8px';
+    allRadio.style.cursor = 'pointer';
+    if (!currentFilter) {
+      allRadio.checked = true;
+    }
+    allRadio.addEventListener('change', function() {
+      if (this.checked) {
+        currentFilter = null;
+        currentFilterName = null;
+        updateMonthlyChart(originalMonthlyData);
+        updateChartTitle(null);
+        document.getElementById('filterCategoryText').textContent = 'Filtrar por categoria/subcategoria';
+        toggleFilterDropdown();
+      }
+    });
+    
+    const allSpan = document.createElement('span');
+    allSpan.textContent = 'Todas (sem filtro)';
+    allSpan.style.fontWeight = '600';
+    
+    allOption.appendChild(allRadio);
+    allOption.appendChild(allSpan);
+    container.appendChild(allOption);
+    
+    // Separador
+    const separator = document.createElement('div');
+    separator.style.height = '1px';
+    separator.style.backgroundColor = '#e0e0e0';
+    separator.style.margin = '8px 0';
+    container.appendChild(separator);
+    
+    // Agrupar categorias por tipo (Receitas primeiro, depois Despesas)
+    const incomeCategories = categoriesForFilter.filter(c => c.is_income);
+    const expenseCategories = categoriesForFilter.filter(c => !c.is_income);
+    
+    // Adicionar categorias de Receitas
+    if (incomeCategories.length > 0) {
+      const incomeHeader = document.createElement('div');
+      incomeHeader.style.padding = '6px 8px';
+      incomeHeader.style.fontWeight = '600';
+      incomeHeader.style.fontSize = '12px';
+      incomeHeader.style.color = '#666';
+      incomeHeader.style.backgroundColor = '#f9f9f9';
+      incomeHeader.textContent = 'Categorias - Receitas';
+      container.appendChild(incomeHeader);
+      
+      incomeCategories.forEach(cat => {
+        const label = createFilterOption('category_' + cat.id, cat.name, 'category');
+        container.appendChild(label);
+      });
+    }
+    
+    // Adicionar categorias de Despesas
+    if (expenseCategories.length > 0) {
+      const expenseHeader = document.createElement('div');
+      expenseHeader.style.padding = '6px 8px';
+      expenseHeader.style.fontWeight = '600';
+      expenseHeader.style.fontSize = '12px';
+      expenseHeader.style.color = '#666';
+      expenseHeader.style.backgroundColor = '#f9f9f9';
+      expenseHeader.style.marginTop = '8px';
+      expenseHeader.textContent = 'Categorias - Despesas';
+      container.appendChild(expenseHeader);
+      
+      expenseCategories.forEach(cat => {
+        const label = createFilterOption('category_' + cat.id, cat.name, 'category');
+        container.appendChild(label);
+      });
+    }
+    
+    // Separador para subcategorias
+    if (subcategoriesForFilter.length > 0) {
+      const subcatSeparator = document.createElement('div');
+      subcatSeparator.style.height = '1px';
+      subcatSeparator.style.backgroundColor = '#e0e0e0';
+      subcatSeparator.style.margin = '12px 0 8px 0';
+      container.appendChild(subcatSeparator);
+      
+      const subcatHeader = document.createElement('div');
+      subcatHeader.style.padding = '6px 8px';
+      subcatHeader.style.fontWeight = '600';
+      subcatHeader.style.fontSize = '12px';
+      subcatHeader.style.color = '#666';
+      subcatHeader.style.backgroundColor = '#f9f9f9';
+      subcatHeader.textContent = 'Subcategorias';
+      container.appendChild(subcatHeader);
+      
+      // Agrupar subcategorias por categoria
+      const subcatsByCategory = {};
+      subcategoriesForFilter.forEach(subcat => {
+        const catKey = subcat.category_name;
+        if (!subcatsByCategory[catKey]) {
+          subcatsByCategory[catKey] = [];
+        }
+        subcatsByCategory[catKey].push(subcat);
+      });
+      
+      Object.keys(subcatsByCategory).sort().forEach(catName => {
+        subcatsByCategory[catName].forEach(subcat => {
+          const label = createFilterOption('subcategory_' + subcat.id, subcat.full_name, 'subcategory');
+          container.appendChild(label);
+        });
+      });
+    }
+  }
+  
+  // Função auxiliar para criar opção de filtro
+  function createFilterOption(value, text, type) {
+    const label = document.createElement('label');
+    label.style.display = 'block';
+    label.style.padding = '6px 8px';
+    label.style.paddingLeft = type === 'subcategory' ? '20px' : '8px';
+    label.style.cursor = 'pointer';
+    label.style.fontSize = '14px';
+    label.style.userSelect = 'none';
+    
+    label.onmouseover = function() {
+      this.style.backgroundColor = '#f5f5f5';
+    };
+    label.onmouseout = function() {
+      this.style.backgroundColor = 'transparent';
+    };
+    
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'categoryFilter';
+    radio.value = value;
+    radio.style.marginRight = '8px';
+    radio.style.cursor = 'pointer';
+    if (currentFilter === value) {
+      radio.checked = true;
+    }
+    radio.addEventListener('change', function() {
+      if (this.checked) {
+        currentFilter = value;
+        currentFilterName = text;
+        applyFilter(value, text);
+        document.getElementById('filterCategoryText').textContent = text.length > 30 ? text.substring(0, 30) + '...' : text;
+        toggleFilterDropdown();
+      }
+    });
+    
+    const span = document.createElement('span');
+    span.textContent = text;
+    
+    label.appendChild(radio);
+    label.appendChild(span);
+    return label;
+  }
+  
+  // Função para atualizar o título do gráfico
+  function updateChartTitle(filterName) {
+    const titleElement = document.getElementById('monthlyChartTitle');
+    if (!titleElement) return;
+    
+    if (filterName) {
+      titleElement.textContent = '📊 Receitas e Despesas por Mês (' + currentYear + ') - Filtrado: ' + filterName;
+    } else {
+      titleElement.textContent = originalChartTitle;
+    }
+  }
+  
+  // Função para aplicar filtro
+  function applyFilter(filterKey, filterName) {
+    let dataToUse = originalMonthlyData;
+    
+    if (filterKey) {
+      if (filterKey.startsWith('category_')) {
+        dataToUse = monthlyDataByCategory[filterKey] || originalMonthlyData;
+      } else if (filterKey.startsWith('subcategory_')) {
+        dataToUse = monthlyDataBySubcategory[filterKey] || originalMonthlyData;
+      }
+    }
+    
+    updateMonthlyChart(dataToUse);
+    updateChartTitle(filterName || null);
+  }
+  
+  // Função para abrir/fechar dropdown
+  function toggleFilterDropdown() {
+    const dropdown = document.getElementById('filterCategoryDropdown');
+    if (dropdown) {
+      const isVisible = dropdown.style.display !== 'none';
+      dropdown.style.display = isVisible ? 'none' : 'block';
+    }
+  }
+  
+  // Inicializar gráfico e filtro
+  if (originalMonthlyData && originalMonthlyData.length > 0) {
+    populateCategoryFilter();
+    updateMonthlyChart(originalMonthlyData);
+    
+    // Event listener para o botão do dropdown
+    const filterBtn = document.getElementById('filterCategoryBtn');
+    if (filterBtn) {
+      filterBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleFilterDropdown();
+      });
+    }
+    
+    // Fechar dropdown quando clicar fora
+    document.addEventListener('click', function(event) {
+      const btn = document.getElementById('filterCategoryBtn');
+      const dropdown = document.getElementById('filterCategoryDropdown');
+      
+      if (btn && dropdown && !btn.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+  }
+  
+  // Gráfico de Gastos por Subcategoria (Anual)
+  const annualSubcategoriesData = {{ subcategories_chart_data|safe }};
+  if (annualSubcategoriesData && annualSubcategoriesData.length > 0) {
+    const annualSubCtx = document.getElementById('annualSubcategoriesChart');
+    if (annualSubCtx) {
+      const labels = annualSubcategoriesData.map(item => item.name);
+      const spentData = annualSubcategoriesData.map(item => item.spent);
+      
+      // Cores para o gráfico
+      const colors = [
+        'rgba(33, 150, 243, 0.8)',
+        'rgba(255, 152, 0, 0.8)',
+        'rgba(76, 175, 80, 0.8)',
+        'rgba(156, 39, 176, 0.8)',
+        'rgba(244, 67, 54, 0.8)',
+        'rgba(0, 188, 212, 0.8)',
+        'rgba(255, 193, 7, 0.8)',
+        'rgba(233, 30, 99, 0.8)',
+        'rgba(63, 81, 181, 0.8)',
+        'rgba(255, 87, 34, 0.8)',
+      ];
+      
+      const backgroundColors = [];
+      for (let i = 0; i < spentData.length; i++) {
+        backgroundColors.push(colors[i % colors.length]);
+      }
+      
+      new Chart(annualSubCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Gasto Total (Ano)',
+            data: spentData,
+            backgroundColor: backgroundColors,
+            borderColor: backgroundColors.map(c => c.replace('0.8', '1')),
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return 'Gasto Total: R$ ' + context.parsed.y.toFixed(2);
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function(value) {
+                  return 'R$ ' + value.toFixed(0);
+                }
+              }
+            },
+            x: {
+              ticks: {
+                maxRotation: 45,
+                minRotation: 45,
+                font: {
+                  size: 12
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+{% else %}
+  // ========== GRÁFICOS PARA VISUALIZAÇÃO MENSUAL (ORIGINAL) ==========
+  // Dados do gráfico originais
+  const originalChartData = {{ subcategories_chart_data|safe }};
+  let chart = null; // Variável global para armazenar a instância do gráfico
+  let currentBudgetData = []; // Variável global para dados orçados atuais
+  let currentPercentages = []; // Variável global para porcentagens atuais
+  
+  // Função para filtrar dados excluindo subcategorias selecionadas
+  function filterData(data, excludedSubcategories) {
+    if (!data || data.length === 0) return [];
+    if (!excludedSubcategories || excludedSubcategories.length === 0) return data;
+    
+    return data.filter(item => {
+      const itemName = item.name ? item.name.toLowerCase().trim() : '';
+      return !excludedSubcategories.some(excluded => {
+        const excludedName = excluded.toLowerCase().trim();
+        return itemName === excludedName;
+      });
+    });
+  }
+  
+  // Função para popular o dropdown com checkboxes das subcategorias disponíveis
+  function populateSubcategoriesDropdown() {
+    const container = document.getElementById('excludeSubcategoriesList');
+    if (!container || !originalChartData || originalChartData.length === 0) return;
+    
+    // Limpar conteúdo existente
+    container.innerHTML = '';
+    
+    // Adicionar cada subcategoria como um checkbox
+    originalChartData.forEach(item => {
+      if (item.name) {
+        const label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.padding = '6px 8px';
+        label.style.cursor = 'pointer';
+        label.style.fontSize = '14px';
+        label.style.userSelect = 'none';
+        
+        label.onmouseover = function() {
+          this.style.backgroundColor = '#f5f5f5';
+        };
+        label.onmouseout = function() {
+          this.style.backgroundColor = 'transparent';
+        };
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = item.name;
+        checkbox.style.marginRight = '8px';
+        checkbox.style.cursor = 'pointer';
+        checkbox.addEventListener('change', function() {
+          updateChart();
+          updateExclusionsCount();
+        });
+        
+        const span = document.createElement('span');
+        span.textContent = item.name;
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        container.appendChild(label);
+      }
+    });
+  }
+  
+  // Função para obter subcategorias selecionadas (excluir)
+  function getExcludedSubcategories() {
+    const checkboxes = document.querySelectorAll('#excludeSubcategoriesList input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+  }
+  
+  // Função para atualizar o contador de exclusões
+  function updateExclusionsCount() {
+    const count = getExcludedSubcategories().length;
+    const countElement = document.getElementById('excludeSubcategoriesCount');
+    if (countElement) {
+      if (count > 0) {
+        countElement.textContent = count;
+        countElement.style.display = 'inline-block';
+      } else {
+        countElement.style.display = 'none';
+      }
+    }
+  }
+  
+  // Função para abrir/fechar dropdown
+  function toggleExcludeDropdown() {
+    const dropdown = document.getElementById('excludeSubcategoriesDropdown');
+    if (dropdown) {
+      const isVisible = dropdown.style.display !== 'none';
+      dropdown.style.display = isVisible ? 'none' : 'block';
+    }
+  }
+  
+  // Plugin customizado para adicionar porcentagens no topo das barras de gasto
+  const percentageLabelPlugin = {
+    id: 'percentageLabel',
+    afterDatasetsDraw: function(chart) {
+      const ctx = chart.ctx;
+      const meta = chart.getDatasetMeta(0); // Dataset de "Gasto"
+      const yScale = chart.scales.y;
+      
+      ctx.save();
+      ctx.font = 'bold 11px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      
+      meta.data.forEach((bar, index) => {
+        const percentage = currentPercentages[index] || 0;
+        const budget = currentBudgetData[index] || 0;
+        const spent = chart.data.datasets[0].data[index] || 0;
+        
+        // Desenhar linha de referência horizontal para o valor orçado
+        if (budget > 0) {
+          const budgetY = yScale.getPixelForValue(budget);
+          const barLeft = bar.x - bar.width / 2;
+          const barRight = bar.x + bar.width / 2;
+          
+          // Linha tracejada verde
+          ctx.strokeStyle = 'rgba(46, 125, 50, 0.8)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath();
+          ctx.moveTo(barLeft, budgetY);
+          ctx.lineTo(barRight, budgetY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        
+        // Adicionar porcentagem no topo da barra de gasto
+        if (spent > 0) {
+          const x = bar.x;
+          const y = bar.y;
+          let text;
+          
+          // Se não há orçamento, mostrar "N/A"
+          if (budget === 0) {
+            text = 'N/A';
+          } else {
+            text = percentage.toFixed(1) + '%';
+          }
+          
+          // Cor do texto baseada na porcentagem ou se não há orçamento
+          ctx.font = 'bold 11px Arial';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          if (budget === 0 && spent > 0) {
+            ctx.fillStyle = 'rgba(198, 40, 40, 1)'; // Vermelho para sem orçamento
+          } else if (percentage < 85) {
+            ctx.fillStyle = 'rgba(33, 150, 243, 1)'; // Azul
+          } else if (percentage < 100) {
+            ctx.fillStyle = 'rgba(255, 152, 0, 1)'; // Laranja
+          } else if (Math.abs(percentage - 100) < 0.01) {
+            ctx.fillStyle = 'rgba(255, 193, 7, 1)'; // Amarelo (com tolerância para arredondamentos)
+          } else {
+            ctx.fillStyle = 'rgba(198, 40, 40, 1)'; // Vermelho
+          }
+          
+          ctx.fillText(text, x, y - 5);
+        }
+      });
+      
+      ctx.restore();
+    }
+  };
+  
+  // Função para criar/atualizar o gráfico
+  function updateChart() {
+    if (!originalChartData || originalChartData.length === 0) return;
+    
+    // Obter subcategorias selecionadas para exclusão
+    const excludedSubcategories = getExcludedSubcategories();
+    
+    const chartData = filterData(originalChartData, excludedSubcategories);
+    
+    if (!chartData || chartData.length === 0) {
+      console.warn('Nenhum dado disponível após filtrar');
+      return;
+    }
+    
     const labels = chartData.map(item => item.name);
     const spentData = chartData.map(item => item.spent);
     const budgetData = chartData.map(item => item.budget);
+    
+    // Atualizar variáveis globais para o plugin
+    currentBudgetData = budgetData;
+    
+    // Calcular o valor máximo entre gastos e orçados para ajustar a escala do eixo Y
+    const maxSpent = Math.max(...spentData, 0);
+    const maxBudget = Math.max(...budgetData, 0);
+    const maxValue = Math.max(maxSpent, maxBudget);
+    const yAxisMax = maxValue > 0 ? maxValue * 1.15 : 100; // Adicionar 15% de margem
     
     // Calcular porcentagens e cores para as barras de gasto
     const percentages = [];
@@ -314,10 +1158,14 @@
         // Azul para < 85%
         spentColors.push('rgba(33, 150, 243, 0.7)'); // Azul com transparência
         spentBorderColors.push('rgba(33, 150, 243, 1)'); // Azul sólido
-      } else if (percentage <= 100) {
-        // Laranja para 85% - 100%
+      } else if (percentage < 100) {
+        // Laranja para 85% - 99.9%
         spentColors.push('rgba(255, 152, 0, 0.7)'); // Laranja com transparência
         spentBorderColors.push('rgba(255, 152, 0, 1)'); // Laranja sólido
+      } else if (Math.abs(percentage - 100) < 0.01) {
+        // Amarelo para exatamente 100% (com tolerância para arredondamentos)
+        spentColors.push('rgba(255, 193, 7, 0.7)'); // Amarelo com transparência
+        spentBorderColors.push('rgba(255, 193, 7, 1)'); // Amarelo sólido
       } else {
         // Vermelho para > 100%
         spentColors.push('rgba(198, 40, 40, 0.7)'); // Vermelho com transparência
@@ -325,80 +1173,18 @@
       }
     });
     
-    // Plugin customizado para adicionar porcentagens no topo das barras de gasto
-    const percentageLabelPlugin = {
-      id: 'percentageLabel',
-      afterDatasetsDraw: function(chart) {
-        const ctx = chart.ctx;
-        const meta = chart.getDatasetMeta(0); // Dataset de "Gasto"
-        const yScale = chart.scales.y;
-        
-        ctx.save();
-        ctx.font = 'bold 11px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        
-        meta.data.forEach((bar, index) => {
-          const percentage = percentages[index];
-          const budget = budgetData[index];
-          const spent = spentData[index];
-          
-          // Desenhar linha de referência horizontal para o valor orçado
-          if (budget > 0) {
-            const budgetY = yScale.getPixelForValue(budget);
-            const barLeft = bar.x - bar.width / 2;
-            const barRight = bar.x + bar.width / 2;
-            
-            // Linha tracejada verde
-            ctx.strokeStyle = 'rgba(46, 125, 50, 0.8)';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            ctx.moveTo(barLeft, budgetY);
-            ctx.lineTo(barRight, budgetY);
-            ctx.stroke();
-            ctx.setLineDash([]);
-          }
-          
-          // Adicionar porcentagem no topo da barra de gasto
-          if (spent > 0) {
-            const x = bar.x;
-            const y = bar.y;
-            let text;
-            
-            // Se não há orçamento, mostrar "N/A"
-            if (budget === 0) {
-              text = 'N/A';
-            } else {
-              text = percentage.toFixed(1) + '%';
-            }
-            
-            // Cor do texto baseada na porcentagem ou se não há orçamento
-            ctx.font = 'bold 11px Arial';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            if (budget === 0 && spent > 0) {
-              ctx.fillStyle = 'rgba(198, 40, 40, 1)'; // Vermelho para sem orçamento
-            } else if (percentage < 85) {
-              ctx.fillStyle = 'rgba(33, 150, 243, 1)'; // Azul
-            } else if (percentage <= 100) {
-              ctx.fillStyle = 'rgba(255, 152, 0, 1)'; // Laranja
-            } else {
-              ctx.fillStyle = 'rgba(198, 40, 40, 1)'; // Vermelho
-            }
-            
-            ctx.fillText(text, x, y - 5);
-          }
-        });
-        
-        ctx.restore();
-      }
-    };
+    // Atualizar variável global de porcentagens
+    currentPercentages = percentages;
+    
+    // Destruir gráfico existente se houver
+    if (chart) {
+      chart.destroy();
+    }
     
     // Configuração do gráfico
     const ctx = document.getElementById('subcategoriesChart');
     if (ctx) {
-      new Chart(ctx.getContext('2d'), {
+      chart = new Chart(ctx.getContext('2d'), {
         type: 'bar',
         plugins: [percentageLabelPlugin],
         data: {
@@ -419,6 +1205,7 @@
           scales: {
             y: {
               beginAtZero: true,
+              max: yAxisMax,
               ticks: {
                 callback: function(value) {
                   return 'R$ ' + value.toFixed(2);
@@ -430,7 +1217,7 @@
                 maxRotation: 45,
                 minRotation: 45,
                 font: {
-                  size: 10
+                  size: 14
                 }
               }
             }
@@ -479,6 +1266,47 @@
       });
     }
   }
+  
+  // Inicializar gráfico
+  if (originalChartData && originalChartData.length > 0) {
+    // Popular o dropdown com as subcategorias disponíveis
+    populateSubcategoriesDropdown();
+    
+    // Inicializar gráfico (sem exclusões)
+    updateChart();
+    updateExclusionsCount();
+    
+    // Event listener para o botão do dropdown
+    const btn = document.getElementById('excludeSubcategoriesBtn');
+    if (btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleExcludeDropdown();
+      });
+    }
+    
+    // Event listener para o botão "Limpar"
+    const clearBtn = document.getElementById('clearExclusionsBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function() {
+        const checkboxes = document.querySelectorAll('#excludeSubcategoriesList input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = false);
+        updateChart();
+        updateExclusionsCount();
+      });
+    }
+    
+    // Fechar dropdown quando clicar fora
+    document.addEventListener('click', function(event) {
+      const btn = document.getElementById('excludeSubcategoriesBtn');
+      const dropdown = document.getElementById('excludeSubcategoriesDropdown');
+      
+      if (btn && dropdown && !btn.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+  }
+{% endif %}
 </script>
 {% endblock %}
 

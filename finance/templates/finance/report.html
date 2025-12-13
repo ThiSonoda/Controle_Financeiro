@@ -8,8 +8,21 @@
   <label for="id_year">Ano:</label>
   <input type="number" id="id_year" name="year" value="{{ year }}" min="2020" max="2100">
   <label for="id_month">Mês:</label>
-  <input type="number" id="id_month" name="month" value="{{ month }}" min="1" max="12">
-  <button type="submit">Atualizar</button>
+  <select id="id_month" name="month" style="height: 35px">
+    <option value="1" {% if month == 1 %}selected{% endif %}>Janeiro</option>
+    <option value="2" {% if month == 2 %}selected{% endif %}>Fevereiro</option>
+    <option value="3" {% if month == 3 %}selected{% endif %}>Março</option>
+    <option value="4" {% if month == 4 %}selected{% endif %}>Abril</option>
+    <option value="5" {% if month == 5 %}selected{% endif %}>Maio</option>
+    <option value="6" {% if month == 6 %}selected{% endif %}>Junho</option>
+    <option value="7" {% if month == 7 %}selected{% endif %}>Julho</option>
+    <option value="8" {% if month == 8 %}selected{% endif %}>Agosto</option>
+    <option value="9" {% if month == 9 %}selected{% endif %}>Setembro</option>
+    <option value="10" {% if month == 10 %}selected{% endif %}>Outubro</option>
+    <option value="11" {% if month == 11 %}selected{% endif %}>Novembro</option>
+    <option value="12" {% if month == 12 %}selected{% endif %}>Dezembro</option>
+  </select>
+  <button type="submit" style="font-size: 14px;">Atualizar</button>
 </form>
 
 <hr>
