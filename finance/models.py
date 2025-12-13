@@ -54,28 +54,6 @@ class CreditCard(models.Model):
     def __str__(self):
         return self.name
 
-
-class CreditCardRefund(models.Model):
-    """Modelo para armazenar estornos de cartão de crédito."""
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    credit_card = models.ForeignKey(CreditCard, on_delete=models.CASCADE, related_name='refunds')
-    amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do estorno")
-    description = models.TextField(help_text="Descrição do estorno")
-    refund_date = models.DateField(help_text="Data do estorno")
-    invoice_year = models.PositiveSmallIntegerField(help_text="Ano da fatura")
-    invoice_month = models.PositiveSmallIntegerField(help_text="Mês da fatura")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-refund_date', '-created_at']
-        verbose_name = 'Estorno de Cartão'
-        verbose_name_plural = 'Estornos de Cartão'
-
-    def __str__(self):
-        return f"{self.credit_card.name} - R$ {self.amount} - {self.invoice_month}/{self.invoice_year}"
-
-
 class Transaction(models.Model):
     TYPE_INCOME = 'IN'
     TYPE_EXPENSE = 'EX'
@@ -162,16 +140,16 @@ class MonthlyBudget(models.Model):
 
 
 class BudgetItem(models.Model):
-    """Item individual que compõe um orçamento mensal."""
+    """Item de um orçamento mensal, permitindo dividir o orçamento em itens menores."""
     budget = models.ForeignKey(MonthlyBudget, on_delete=models.CASCADE, related_name='items')
     description = models.CharField(max_length=255, help_text="Descrição do item")
     amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do item")
     order = models.PositiveSmallIntegerField(default=0, help_text="Ordem de exibição do item")
 
     class Meta:
-        ordering = ['order', 'id']
         verbose_name = 'Item de Orçamento'
         verbose_name_plural = 'Itens de Orçamento'
+        ordering = ['order', 'id']
 
     def __str__(self):
         return f"{self.budget.subcategory.name} - {self.description}: R$ {self.amount}"
@@ -229,16 +207,16 @@ class BudgetTemplateItem(models.Model):
 
 
 class BudgetTemplateItemItem(models.Model):
-    """Item individual que compõe um item de template de orçamento."""
+    """Item de um item de template, permitindo dividir o valor do item do template em itens menores."""
     template_item = models.ForeignKey(BudgetTemplateItem, on_delete=models.CASCADE, related_name='items')
     description = models.CharField(max_length=255, help_text="Descrição do item")
     amount = models.DecimalField(max_digits=14, decimal_places=2, help_text="Valor do item")
     order = models.PositiveSmallIntegerField(default=0, help_text="Ordem de exibição do item")
 
     class Meta:
-        ordering = ['order', 'id']
         verbose_name = 'Item do Item de Template'
         verbose_name_plural = 'Itens do Item de Template'
+        ordering = ['order', 'id']
 
     def __str__(self):
         return f"{self.template_item.subcategory.name} - {self.description}: R$ {self.amount}"
