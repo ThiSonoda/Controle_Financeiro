@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, BudgetItem, ActionLog, CreditCard, BudgetTemplate, BudgetTemplateItem, BudgetTemplateItemItem, Legend
+from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, ActionLog, CreditCard, CreditCardRefund, BudgetTemplate, BudgetTemplateItem, BudgetTemplateItemItem, Legend, BudgetItem
 
 admin.site.register(Category)
 admin.site.register(Subcategory)
@@ -16,16 +16,6 @@ class TransactionAdmin(admin.ModelAdmin):
 admin.site.register(Transaction, TransactionAdmin)
 admin.site.register(MonthlyBudget)
 
-class BudgetItemAdmin(admin.ModelAdmin):
-    list_display = ('budget', 'description', 'amount', 'order')
-    list_display_links = ('description',)
-    list_filter = ('budget__year', 'budget__month', 'budget__subcategory')
-    search_fields = ('description', 'budget__subcategory__name')
-    list_editable = ('amount', 'order')
-    list_per_page = 20
-
-admin.site.register(BudgetItem, BudgetItemAdmin)
-
 class ActionLogAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'user', 'action', 'details')
     list_display_links = ('timestamp', 'user', 'action')
@@ -37,6 +27,15 @@ class ActionLogAdmin(admin.ModelAdmin):
 
 admin.site.register(ActionLog, ActionLogAdmin)
 admin.site.register(CreditCard)
+
+class CreditCardRefundAdmin(admin.ModelAdmin):
+    list_display = ('credit_card', 'amount', 'refund_date', 'invoice_month', 'invoice_year', 'created_at')
+    list_filter = ('credit_card', 'invoice_year', 'invoice_month', 'refund_date')
+    search_fields = ('description', 'credit_card__name')
+    readonly_fields = ('created_at', 'updated_at')
+    list_per_page = 20
+
+admin.site.register(CreditCardRefund, CreditCardRefundAdmin)
 
 class BudgetTemplateItemInline(admin.TabularInline):
     model = BudgetTemplateItem
@@ -61,3 +60,27 @@ class LegendAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
 
 admin.site.register(Legend, LegendAdmin)
+
+class BudgetItemAdmin(admin.ModelAdmin):
+    list_display = ('budget', 'description', 'amount', 'order')
+    list_display_links = ('description',)
+    list_filter = ('budget__year', 'budget__month', 'budget__subcategory')
+    search_fields = ('description', 'budget__subcategory__name')
+    list_editable = ('amount', 'order')
+    list_per_page = 20
+
+admin.site.register(BudgetItem, BudgetItemAdmin)
+
+class BudgetTemplateItemItemInline(admin.TabularInline):
+    model = BudgetTemplateItemItem
+    extra = 1
+    fields = ('description', 'amount', 'order')
+
+class BudgetTemplateItemAdmin(admin.ModelAdmin):
+    list_display = ('template', 'subcategory', 'amount', 'use_items', 'comment')
+    list_filter = ('template', 'use_items')
+    search_fields = ('subcategory__name', 'template__name')
+    inlines = [BudgetTemplateItemItemInline]
+
+admin.site.register(BudgetTemplateItem, BudgetTemplateItemAdmin)
+admin.site.register(BudgetTemplateItemItem)

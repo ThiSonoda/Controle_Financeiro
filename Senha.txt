@@ -1,0 +1,2 @@
+User = Thiago
+Senha = parapalaia

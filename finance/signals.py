@@ -2,6 +2,7 @@
 from django.db.models.signals import pre_save, post_save, pre_delete
 from django.db.models import F
 from django.dispatch import receiver
+from decimal import Decimal
 from .models import Transaction, Account
 
 
@@ -88,11 +89,27 @@ def transaction_post_save(sender, instance, created, **kwargs):
     """
     Após salvar, atualiza o saldo da conta se is_paid=True.
     O pre_save já reverteu o impacto antigo se necessário, então aqui apenas aplicamos o novo.
+    Também cria PendingInvestment se a subcategoria contém "Investimento".
     """
     if created:
         # Nova transação: atualiza saldo se estiver paga
         if instance.is_paid:
             update_account_balance(instance.account, instance.amount, instance.type, instance.is_paid)
+        
+        # Criar PendingInvestment se a subcategoria contém "Investimento"
+        if 'investimento' in instance.subcategory.name.lower():
+            try:
+                from investment.models import PendingInvestment
+                PendingInvestment.objects.get_or_create(
+                    transaction=instance,
+                    defaults={
+                        'amount': instance.amount,
+                        'amount_allocated': Decimal('0.00'),
+                    }
+                )
+            except ImportError:
+                # Se o app investment não estiver instalado, ignora
+                pass
     else:
         # Transação existente: aplica o novo impacto se estiver paga
         # O pre_save já reverteu o impacto antigo se necessário
@@ -114,7 +131,16 @@ def transaction_post_save(sender, instance, created, **kwargs):
 def transaction_pre_delete(sender, instance, **kwargs):
     """
     Antes de deletar, reverte o impacto no saldo se a transação estava paga.
+    Também deleta PendingInvestment associado se existir.
     """
     if instance.is_paid:
         revert_account_balance(instance.account, instance.amount, instance.type, instance.is_paid)
+    
+    # Deletar PendingInvestment associado se existir
+    try:
+        from investment.models import PendingInvestment
+        PendingInvestment.objects.filter(transaction=instance).delete()
+    except ImportError:
+        # Se o app investment não estiver instalado, ignora
+        pass
 

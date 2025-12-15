@@ -1,5 +1,5 @@
 # finance/views.py
-from datetime import date
+from datetime import date, datetime
 import calendar
 import uuid
 import json
@@ -14,7 +14,7 @@ from django.urls import reverse
 from django.contrib import messages
 from django.http import JsonResponse
 
-from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, BudgetItem, CreditCard, ActionLog, BudgetTemplate, BudgetTemplateItem, BudgetTemplateItemItem, Legend
+from .models import Category, Subcategory, Account, Transaction, MonthlyBudget, CreditCard, CreditCardRefund, ActionLog, BudgetTemplate, BudgetTemplateItem, BudgetTemplateItemItem, Legend, BudgetItem
 
 
 def log_action(user, action, details=''):
@@ -138,6 +138,7 @@ def calculate_credit_card_invoices(user, year, month):
     """
     Calcula o total das faturas de cada cartão de crédito para um mês/ano específico.
     Retorna uma lista ordenada com informações sobre cada fatura, incluindo status de pagamento.
+    Subtrai os estornos do total da fatura.
     """
     from decimal import Decimal
     credit_cards = CreditCard.objects.all().order_by('name')
@@ -156,6 +157,19 @@ def calculate_credit_card_invoices(user, year, month):
             total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
         )['total'] or Decimal('0.00')
         
+        # Subtrair estornos para este cartão, mês e ano
+        refunds = CreditCardRefund.objects.filter(
+            credit_card=card,
+            invoice_year=year,
+            invoice_month=month
+        )
+        refunds_total = refunds.aggregate(
+            total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+        )['total'] or Decimal('0.00')
+        
+        # Subtrair estornos do total
+        total = total - refunds_total
+        
         # Verificar se todas as transações estão pagas
         paid_count = all_transactions.filter(is_paid=True).count()
         total_count = all_transactions.count()
@@ -167,6 +181,8 @@ def calculate_credit_card_invoices(user, year, month):
             'total': total,
             'count': total_count,
             'is_paid': is_paid,
+            'refunds_total': refunds_total,
+            'refunds_count': refunds.count(),
         })
     
     return invoices
@@ -231,7 +247,7 @@ def transactions_view(request):
             subcategory = Subcategory.objects.get(id=subcategory_id)
             # A categoria será identificada automaticamente através da subcategoria no método save()
             # account = Account.objects.get(id=account_id, user=user)
-            account = Account.objects.get(id=2)
+            account = Account.objects.get(id=2) #Hardcoded para sempre pegar a Conta Thi
         except (Subcategory.DoesNotExist, Account.DoesNotExist):
             messages.error(request, "Subcategoria ou conta não encontrada.")
             return redirect('finance:transactions')
@@ -446,6 +462,9 @@ def transactions_view(request):
     
     # Calcular faturas dos cartões de crédito
     credit_card_invoices = calculate_credit_card_invoices(user, year, month)
+    
+    # Verificar se há pelo menos uma fatura sendo exibida (count > 0)
+    has_invoices = any(invoice['count'] > 0 for invoice in credit_card_invoices)
 
     context = {
         'subcategories': subcategories,
@@ -454,6 +473,7 @@ def transactions_view(request):
         'transactions': transactions,
         'total_signed_amount': total_signed_amount,
         'credit_card_invoices': credit_card_invoices,
+        'has_invoices': has_invoices,
         'selected_year': year,
         'selected_month': month,
         'filter_year': filter_year,
@@ -977,10 +997,10 @@ def budget_view(request):
 
 
 @login_required
-def report_view(request):
+def planning_view(request):
     """
-    Página de relatório: Gasto x Orçado por subcategoria no mês.
-    Também permite editar orçamentos (unificado com Planejamento).
+    Página de planejamento: Gasto x Orçado por subcategoria no mês.
+    Permite editar orçamentos e visualizar gastos planejados.
     """
     user = request.user
     today = date.today()
@@ -1000,60 +1020,52 @@ def report_view(request):
             field_name = f'budget_{subcategory.id}'
             comment_field_name = f'comment_{subcategory.id}'
             use_items_field = f'use_items_{subcategory.id}'
+            
             value_str = request.POST.get(field_name, '').strip()
             comment_str = request.POST.get(comment_field_name, '').strip()
             use_items = request.POST.get(use_items_field) == 'on'
             
-            # Processar itens se use_items está ativo
+            # Processar itens se use_items estiver marcado
             items_data = []
             if use_items:
-                item_count = 0
+                item_index = 0
                 while True:
-                    item_desc_field = f'item_desc_{subcategory.id}_{item_count}'
-                    item_amount_field = f'item_amount_{subcategory.id}_{item_count}'
-                    item_order_field = f'item_order_{subcategory.id}_{item_count}'
+                    item_desc = request.POST.get(f'item_desc_{subcategory.id}_{item_index}', '').strip()
+                    item_value = request.POST.get(f'item_value_{subcategory.id}_{item_index}', '').strip()
                     
-                    item_desc = request.POST.get(item_desc_field, '').strip()
-                    item_amount_str = request.POST.get(item_amount_field, '').strip()
-                    item_order = request.POST.get(item_order_field, '0').strip()
-                    
-                    if not item_desc and not item_amount_str:
+                    if not item_desc and not item_value:
                         break
                     
-                    if item_desc and item_amount_str:
+                    if item_desc and item_value:
                         try:
-                            item_amount = Decimal(item_amount_str.replace(',', '.'))
+                            from decimal import Decimal
+                            item_amount = Decimal(item_value.replace(',', '.'))
                             items_data.append({
                                 'description': item_desc,
                                 'amount': item_amount,
-                                'order': int(item_order) if item_order.isdigit() else item_count
+                                'order': item_index
                             })
                         except Exception:
                             pass
-                    
-                    item_count += 1
+                    item_index += 1
                 
-                # Se use_items está ativo, calcular amount como soma dos itens
-                if items_data:
-                    amount = sum(item['amount'] for item in items_data)
-                    value_str = str(amount)
-                else:
-                    amount = Decimal('0.00')
-                    value_str = '0.00'
-            
-            if value_str == '':
-                # Se vazio, deletar orçamento
-                amount = None
+                # Calcular amount pela soma dos itens
+                amount = sum(item['amount'] for item in items_data) if items_data else None
             else:
-                try:
-                    amount = Decimal(value_str.replace(',', '.'))
-                except Exception:
-                    messages.error(request, f"Valor inválido para subcategoria {subcategory.name}.")
-                    return redirect(f"{reverse('finance:report')}?year={year}&month={month}&edit=1")
+                # Modo tradicional: usar valor direto
+                if value_str == '':
+                    amount = None
+                else:
+                    try:
+                        from decimal import Decimal
+                        amount = Decimal(value_str.replace(',', '.'))
+                    except Exception:
+                        messages.error(request, f"Valor inválido para subcategoria {subcategory.name}.")
+                        return redirect(f"{reverse('finance:planning')}?year={year}&month={month}&edit=1")
 
             # Criar/atualizar orçamento
-            if amount is None:
-                # Deletar orçamento quando vazio
+            if amount is None and not use_items:
+                # Deletar orçamento quando vazio (apenas se não usar itens)
                 budget_exists = MonthlyBudget.objects.filter(
                     subcategory=subcategory, year=year, month=month
                 ).exists()
@@ -1067,7 +1079,7 @@ def report_view(request):
                         f"Mês/Ano: {month:02d}/{year}"
                     )
             else:
-                # Verificar se o orçamento já existe e se houve mudança
+                # Verificar se o orçamento já existe
                 try:
                     existing_budget = MonthlyBudget.objects.get(
                         user=user,
@@ -1075,40 +1087,31 @@ def report_view(request):
                         year=year,
                         month=month
                     )
-                    # Comparar valores e comentários
-                    amount_changed = existing_budget.amount != amount
+                    # Atualizar orçamento
                     comment_value = comment_str if comment_str else None
-                    comment_changed = existing_budget.comment != comment_value
-                    use_items_changed = existing_budget.use_items != use_items
+                    existing_budget.amount = amount if amount else Decimal('0.00')
+                    existing_budget.comment = comment_value
+                    existing_budget.use_items = use_items
+                    existing_budget.save()
                     
-                    if amount_changed or comment_changed or use_items_changed:
-                        # Atualizar apenas se houver mudança
-                        existing_budget.amount = amount
-                        existing_budget.comment = comment_value
-                        existing_budget.use_items = use_items
-                        existing_budget.save()
-                        
-                        # Atualizar itens se use_items está ativo
-                        if use_items:
-                            # Deletar itens existentes
-                            BudgetItem.objects.filter(budget=existing_budget).delete()
-                            # Criar novos itens
-                            for item_data in items_data:
-                                BudgetItem.objects.create(
-                                    budget=existing_budget,
-                                    description=item_data['description'],
-                                    amount=item_data['amount'],
-                                    order=item_data['order']
-                                )
-                        else:
-                            # Se não está mais usando itens, deletar todos os itens
-                            BudgetItem.objects.filter(budget=existing_budget).delete()
-                        
-                        log_action(
-                            user,
-                            f"Atualizou orçamento: {subcategory.name}",
-                            f"Mês/Ano: {month:02d}/{year}, Valor: R$ {amount:.2f}"
-                        )
+                    # Deletar itens antigos e criar novos
+                    if use_items:
+                        existing_budget.items.all().delete()
+                        for item_data in items_data:
+                            BudgetItem.objects.create(
+                                budget=existing_budget,
+                                description=item_data['description'],
+                                amount=item_data['amount'],
+                                order=item_data['order']
+                            )
+                    else:
+                        existing_budget.items.all().delete()
+                    
+                    log_action(
+                        user,
+                        f"Atualizou orçamento: {subcategory.name}",
+                        f"Mês/Ano: {month:02d}/{year}, Valor: R$ {existing_budget.amount:.2f}, Itens: {len(items_data) if use_items else 0}"
+                    )
                 except MonthlyBudget.DoesNotExist:
                     # Criar novo orçamento
                     new_budget = MonthlyBudget.objects.create(
@@ -1116,12 +1119,12 @@ def report_view(request):
                         subcategory=subcategory,
                         year=year,
                         month=month,
-                        amount=amount,
+                        amount=amount if amount else Decimal('0.00'),
                         comment=comment_str if comment_str else None,
                         use_items=use_items
                     )
                     
-                    # Criar itens se use_items está ativo
+                    # Criar itens se use_items estiver marcado
                     if use_items:
                         for item_data in items_data:
                             BudgetItem.objects.create(
@@ -1134,13 +1137,13 @@ def report_view(request):
                     log_action(
                         user,
                         f"Criou orçamento: {subcategory.name}",
-                        f"Mês/Ano: {month:02d}/{year}, Valor: R$ {amount:.2f}"
+                        f"Mês/Ano: {month:02d}/{year}, Valor: R$ {new_budget.amount:.2f}, Itens: {len(items_data) if use_items else 0}"
                     )
 
         messages.success(request, "Orçamento salvo com sucesso.")
-        return redirect(f"{reverse('finance:report')}?year={year}&month={month}")
+        return redirect(f"{reverse('finance:planning')}?year={year}&month={month}")
     
-    # GET - exibir relatório
+    # GET - exibir planejamento
     year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='shared_')
     
     # Verificar se está no modo edição
@@ -1164,6 +1167,20 @@ def report_view(request):
         .prefetch_related('items')
         .values('subcategory_id', 'subcategory__name', 'subcategory__category_id', 'subcategory__category__name', 'subcategory__category__is_income', 'amount', 'comment', 'use_items', 'id')
     )
+    
+    # Criar um mapa de budget_id para itens
+    budget_items_map = {}
+    if budgets_qs:
+        budget_ids = [b['id'] for b in budgets_qs if b.get('id')]
+        items = BudgetItem.objects.filter(budget_id__in=budget_ids).order_by('order', 'id')
+        for item in items:
+            if item.budget_id not in budget_items_map:
+                budget_items_map[item.budget_id] = []
+            budget_items_map[item.budget_id].append({
+                'description': item.description,
+                'amount': float(item.amount),
+                'order': item.order
+            })
 
     # Criar mapas separados para receitas e despesas
     income_map = {}
@@ -1192,20 +1209,6 @@ def report_view(request):
             }
     
     budgets_map = {b['subcategory_id']: b for b in budgets_qs}
-    
-    # Carregar itens dos budgets
-    budget_ids = [b['id'] for b in budgets_qs]
-    budget_items_map = {}
-    if budget_ids:
-        items = BudgetItem.objects.filter(budget_id__in=budget_ids).order_by('order', 'id')
-        for item in items:
-            if item.budget_id not in budget_items_map:
-                budget_items_map[item.budget_id] = []
-            budget_items_map[item.budget_id].append({
-                'description': item.description,
-                'amount': float(item.amount),
-                'order': item.order
-            })
 
     # No modo edição, incluir TODAS as subcategorias
     # No modo visualização, incluir apenas subcategorias com transações ou orçamentos
@@ -1288,9 +1291,8 @@ def report_view(request):
         budget_comment = bud.get('comment', '') if bud else ''
         # Obter use_items e itens
         use_items = bud.get('use_items', False) if bud else False
-        budget_items = []
-        if bud and bud.get('id'):
-            budget_items = budget_items_map.get(bud['id'], [])
+        budget_id = bud.get('id') if bud else None
+        budget_items = budget_items_map.get(budget_id, []) if budget_id else []
         
         categories_dict[category_id]['subcategories'].append({
             'subcategory_id': subcat_id,
@@ -1298,7 +1300,7 @@ def report_view(request):
             'budget': budget,
             'budget_str': budget_str,  # String formatada com ponto decimal para inputs
             'budget_comment': budget_comment,  # Comentário do orçamento
-            'use_items': use_items,  # Se deve usar itens
+            'use_items': use_items,  # Se usa itens para calcular o valor
             'budget_items': budget_items,  # Lista de itens do orçamento
             'spent': spent,
             'diff': diff,
@@ -1467,7 +1469,7 @@ def report_view(request):
         'templates': templates,
         'subcategories_by_category': sorted_subcategories_by_category,
     }
-    return render(request, 'finance/report.html', context)
+    return render(request, 'finance/planning.html', context)
 
 
 @login_required
@@ -1744,7 +1746,7 @@ def dashboard_view(request):
     # Obter modo de visualização (mensal ou anual)
     view_mode = request.GET.get('view_mode', 'monthly')
     
-    # Obter ano/mês dos parâmetros GET ou usar sessão compartilhada (com Dashboard, Lançamentos e Relatórios)
+    # Obter ano/mês dos parâmetros GET ou usar sessão compartilhada (com Dashboard, Lançamentos e Planejamento)
     year, month = _get_year_month_from_request(request, use_session=True, session_key_prefix='shared_')
     
     # Saldo total das contas (sempre atual, não depende do filtro de mês)
@@ -2170,7 +2172,7 @@ def budget_template_create_view(request):
             return JsonResponse({'success': False, 'error': 'Nome do template é obrigatório'}, status=400)
         
         description = data.get('description', '').strip() or None
-        items_data = data.get('items', [])  # Lista de {subcategory_id, amount}
+        items_data = data.get('items', [])  # Lista de {subcategory_id, amount, use_items, items}
         
         # Criar template
         template = BudgetTemplate.objects.create(
@@ -2185,14 +2187,27 @@ def budget_template_create_view(request):
             amount_str = item_data.get('amount', '0').strip()
             comment_str = item_data.get('comment', '').strip() or None
             use_items = item_data.get('use_items', False)
-            template_items_data = item_data.get('items', [])
+            budget_items = item_data.get('items', [])  # Lista de itens individuais
             
-            if not subcategory_id or not amount_str:
+            if not subcategory_id:
                 continue
             
             try:
-                amount = Decimal(amount_str.replace(',', '.'))
-                if amount > 0:
+                # Se usar itens, calcular o total pela soma dos itens
+                if use_items and budget_items:
+                    total_amount = Decimal('0.00')
+                    for budget_item in budget_items:
+                        item_value_str = budget_item.get('amount', '0').strip()
+                        try:
+                            item_value = Decimal(item_value_str.replace(',', '.'))
+                            total_amount += item_value
+                        except (ValueError, TypeError):
+                            continue
+                    amount = total_amount
+                else:
+                    amount = Decimal(amount_str.replace(',', '.')) if amount_str else Decimal('0.00')
+                
+                if amount > 0 or use_items:
                     template_item = BudgetTemplateItem.objects.create(
                         template=template,
                         subcategory_id=subcategory_id,
@@ -2201,21 +2216,20 @@ def budget_template_create_view(request):
                         use_items=use_items
                     )
                     
-                    # Criar itens do item do template se use_items está ativo
-                    if use_items and template_items_data:
-                        for template_item_data in template_items_data:
-                            item_desc = template_item_data.get('description', '').strip()
-                            item_amount_str = template_item_data.get('amount', '0').strip()
-                            item_order = template_item_data.get('order', 0)
+                    # Criar itens individuais se use_items for True
+                    if use_items and budget_items:
+                        for order, budget_item in enumerate(budget_items):
+                            item_desc = budget_item.get('description', '').strip()
+                            item_value_str = budget_item.get('amount', '0').strip()
                             
-                            if item_desc and item_amount_str:
+                            if item_desc and item_value_str:
                                 try:
-                                    item_amount = Decimal(item_amount_str.replace(',', '.'))
+                                    item_value = Decimal(item_value_str.replace(',', '.'))
                                     BudgetTemplateItemItem.objects.create(
                                         template_item=template_item,
                                         description=item_desc,
-                                        amount=item_amount,
-                                        order=int(item_order) if isinstance(item_order, (int, str)) and str(item_order).isdigit() else 0
+                                        amount=item_value,
+                                        order=order
                                     )
                                 except (ValueError, TypeError):
                                     continue
@@ -2252,13 +2266,12 @@ def budget_template_edit_view(request, template_id):
         # Retornar dados do template
         items_data = []
         for item in template.items.select_related('subcategory', 'subcategory__category').prefetch_related('items').all():
-            template_items_data = []
+            budget_items_data = []
             if item.use_items:
-                for template_item in item.items.all().order_by('order', 'id'):
-                    template_items_data.append({
-                        'description': template_item.description,
-                        'amount': str(template_item.amount),
-                        'order': template_item.order
+                for budget_item in item.items.all():
+                    budget_items_data.append({
+                        'description': budget_item.description,
+                        'amount': str(budget_item.amount)
                     })
             
             items_data.append({
@@ -2267,7 +2280,7 @@ def budget_template_edit_view(request, template_id):
                 'amount': str(item.amount),
                 'comment': item.comment or '',
                 'use_items': item.use_items,
-                'items': template_items_data
+                'items': budget_items_data
             })
         
         return JsonResponse({
@@ -2301,14 +2314,27 @@ def budget_template_edit_view(request, template_id):
                 amount_str = item_data.get('amount', '0').strip()
                 comment_str = item_data.get('comment', '').strip() or None
                 use_items = item_data.get('use_items', False)
-                template_items_data = item_data.get('items', [])
+                budget_items = item_data.get('items', [])
                 
-                if not subcategory_id or not amount_str:
+                if not subcategory_id:
                     continue
                 
                 try:
-                    amount = Decimal(amount_str.replace(',', '.'))
-                    if amount > 0:
+                    # Se usar itens, calcular o total pela soma dos itens
+                    if use_items and budget_items:
+                        total_amount = Decimal('0.00')
+                        for budget_item in budget_items:
+                            item_value_str = budget_item.get('amount', '0').strip()
+                            try:
+                                item_value = Decimal(item_value_str.replace(',', '.'))
+                                total_amount += item_value
+                            except (ValueError, TypeError):
+                                continue
+                        amount = total_amount
+                    else:
+                        amount = Decimal(amount_str.replace(',', '.')) if amount_str else Decimal('0.00')
+                    
+                    if amount > 0 or use_items:
                         template_item = BudgetTemplateItem.objects.create(
                             template=template,
                             subcategory_id=subcategory_id,
@@ -2317,21 +2343,20 @@ def budget_template_edit_view(request, template_id):
                             use_items=use_items
                         )
                         
-                        # Criar itens do item do template se use_items está ativo
-                        if use_items and template_items_data:
-                            for template_item_item_data in template_items_data:
-                                item_desc = template_item_item_data.get('description', '').strip()
-                                item_amount_str = template_item_item_data.get('amount', '0').strip()
-                                item_order = template_item_item_data.get('order', 0)
+                        # Criar itens individuais se use_items for True
+                        if use_items and budget_items:
+                            for order, budget_item in enumerate(budget_items):
+                                item_desc = budget_item.get('description', '').strip()
+                                item_value_str = budget_item.get('amount', '0').strip()
                                 
-                                if item_desc and item_amount_str:
+                                if item_desc and item_value_str:
                                     try:
-                                        item_amount = Decimal(item_amount_str.replace(',', '.'))
+                                        item_value = Decimal(item_value_str.replace(',', '.'))
                                         BudgetTemplateItemItem.objects.create(
                                             template_item=template_item,
                                             description=item_desc,
-                                            amount=item_amount,
-                                            order=int(item_order) if isinstance(item_order, (int, str)) and str(item_order).isdigit() else 0
+                                            amount=item_value,
+                                            order=order
                                         )
                                     except (ValueError, TypeError):
                                         continue
@@ -2439,17 +2464,15 @@ def budget_template_apply_view(request):
                 }
             )
             
-            # Se use_items está ativo, copiar os itens do template
+            # Deletar itens antigos e criar novos se use_items for True
             if item.use_items:
-                # Deletar itens existentes do budget
-                BudgetItem.objects.filter(budget=budget).delete()
-                # Copiar itens do template
-                for template_item in item.items.all().order_by('order', 'id'):
+                budget.items.all().delete()
+                for order, template_item_item in enumerate(item.items.all()):
                     BudgetItem.objects.create(
                         budget=budget,
-                        description=template_item.description,
-                        amount=template_item.amount,
-                        order=template_item.order
+                        description=template_item_item.description,
+                        amount=template_item_item.amount,
+                        order=order
                     )
             
             applied_count += 1
@@ -2521,14 +2544,14 @@ def budget_template_save_current_view(request):
                 use_items=budget.use_items
             )
             
-            # Se use_items está ativo, copiar os itens do budget
+            # Copiar itens individuais se use_items for True
             if budget.use_items:
-                for budget_item in budget.items.all().order_by('order', 'id'):
+                for order, budget_item in enumerate(budget.items.all()):
                     BudgetTemplateItemItem.objects.create(
                         template_item=template_item,
                         description=budget_item.description,
                         amount=budget_item.amount,
-                        order=budget_item.order
+                        order=order
                     )
         
         log_action(
@@ -2709,3 +2732,304 @@ def subcategory_budget_info_view(request):
         'year': year,
         'month': month
     })
+
+
+@login_required
+def subcategory_transactions_view(request):
+    """Retorna as transações de uma subcategoria filtradas por mês e ano."""
+    from django.http import JsonResponse
+    
+    user = request.user
+    subcategory_id = request.GET.get('subcategory_id')
+    year = request.GET.get('year')
+    month = request.GET.get('month')
+    
+    if not subcategory_id or not year or not month:
+        return JsonResponse({'success': False, 'error': 'Parâmetros obrigatórios: subcategory_id, year, month'}, status=400)
+    
+    try:
+        subcategory_id = int(subcategory_id)
+        year = int(year)
+        month = int(month)
+        
+        # Buscar subcategoria
+        try:
+            subcategory = Subcategory.objects.get(id=subcategory_id)
+        except Subcategory.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Subcategoria não encontrada'}, status=404)
+        
+        # Buscar transações filtradas
+        transactions = Transaction.objects.filter(
+            user=user,
+            subcategory=subcategory,
+            payment_date__year=year,
+            payment_date__month=month
+        ).select_related('account', 'credit_card', 'subcategory', 'category').order_by('payment_date', 'id')
+        
+        # Preparar dados das transações
+        transactions_data = []
+        total_amount = Decimal('0.00')
+        
+        for transaction in transactions:
+            transactions_data.append({
+                'id': transaction.id,
+                'date': transaction.date.strftime('%d/%m/%Y'),
+                'payment_date': transaction.payment_date.strftime('%d/%m/%Y'),
+                'type': transaction.get_type_display(),
+                'description': transaction.description or '',
+                'amount': float(transaction.amount),
+                'account': transaction.account.name if transaction.account else '',
+                'credit_card': transaction.credit_card.name if transaction.credit_card else '',
+                'is_paid': transaction.is_paid,
+                'comment': transaction.comment or '',
+            })
+            total_amount += transaction.amount
+        
+        return JsonResponse({
+            'success': True,
+            'subcategory_name': str(subcategory),
+            'year': year,
+            'month': month,
+            'transactions': transactions_data,
+            'total': float(total_amount),
+            'count': len(transactions_data)
+        })
+    
+    except (ValueError, TypeError) as e:
+        return JsonResponse({'success': False, 'error': f'Parâmetros inválidos: {str(e)}'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def credit_card_refunds_view(request):
+    """Lista e gerencia estornos de cartão de crédito."""
+    user = request.user
+    today = date.today()
+    
+    # Filtros
+    card_id = request.GET.get('card_id', '')
+    year = request.GET.get('year', '')
+    month = request.GET.get('month', '')
+    
+    refunds = CreditCardRefund.objects.filter(user=user).select_related('credit_card').order_by('-refund_date', '-created_at')
+    
+    # Aplicar filtros
+    if card_id:
+        try:
+            refunds = refunds.filter(credit_card_id=int(card_id))
+        except ValueError:
+            pass
+    
+    if year:
+        try:
+            refunds = refunds.filter(invoice_year=int(year))
+        except ValueError:
+            pass
+    
+    if month:
+        try:
+            refunds = refunds.filter(invoice_month=int(month))
+        except ValueError:
+            pass
+    
+    # Buscar cartões para o filtro
+    credit_cards = CreditCard.objects.filter(user=user).order_by('name')
+    
+    # Calcular totais
+    total_amount = refunds.aggregate(
+        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+    )['total'] or Decimal('0.00')
+    
+    context = {
+        'refunds': refunds,
+        'credit_cards': credit_cards,
+        'total_amount': total_amount,
+        'selected_card_id': card_id,
+        'selected_year': year,
+        'selected_month': month,
+        'today': today,
+        'current_year': today.year,
+        'current_month': today.month,
+    }
+    
+    return render(request, 'finance/credit_card_refunds.html', context)
+
+
+@login_required
+def create_credit_card_refund_view(request):
+    """Cria um novo estorno de cartão de crédito."""
+    user = request.user
+    
+    if request.method == 'POST':
+        try:
+            credit_card_id = request.POST.get('credit_card')
+            amount_str = request.POST.get('amount', '').strip()
+            description = request.POST.get('description', '').strip()
+            refund_date_str = request.POST.get('refund_date')
+            invoice_year = int(request.POST.get('invoice_year'))
+            invoice_month = int(request.POST.get('invoice_month'))
+            
+            if not credit_card_id or not amount_str or not description or not refund_date_str:
+                messages.error(request, "Todos os campos são obrigatórios.")
+                return redirect('finance:credit_card_refunds')
+            
+            try:
+                credit_card = CreditCard.objects.get(id=credit_card_id, user=user)
+            except CreditCard.DoesNotExist:
+                messages.error(request, "Cartão de crédito não encontrado.")
+                return redirect('finance:credit_card_refunds')
+            
+            amount = Decimal(amount_str.replace(',', '.'))
+            refund_date = datetime.strptime(refund_date_str, '%Y-%m-%d').date()
+            
+            # Validar valores
+            if amount <= 0:
+                messages.error(request, "O valor do estorno deve ser maior que zero.")
+                return redirect('finance:credit_card_refunds')
+            
+            if invoice_month < 1 or invoice_month > 12:
+                messages.error(request, "Mês inválido.")
+                return redirect('finance:credit_card_refunds')
+            
+            # Criar estorno
+            refund = CreditCardRefund.objects.create(
+                user=user,
+                credit_card=credit_card,
+                amount=amount,
+                description=description,
+                refund_date=refund_date,
+                invoice_year=invoice_year,
+                invoice_month=invoice_month
+            )
+            
+            log_action(
+                user,
+                f"Criou estorno de cartão: {credit_card.name}",
+                f"Valor: R$ {amount}, Data: {refund_date.strftime('%d/%m/%Y')}, Fatura: {invoice_month}/{invoice_year}"
+            )
+            
+            messages.success(request, f"Estorno de R$ {amount:.2f} criado com sucesso.")
+            return redirect('finance:credit_card_refunds')
+        
+        except ValueError as e:
+            messages.error(request, f"Erro ao processar os dados: {str(e)}")
+            return redirect('finance:credit_card_refunds')
+        except Exception as e:
+            messages.error(request, f"Erro ao criar estorno: {str(e)}")
+            return redirect('finance:credit_card_refunds')
+    
+    # GET: redirecionar para a página de listagem
+    return redirect('finance:credit_card_refunds')
+
+
+@login_required
+def edit_credit_card_refund_view(request, refund_id):
+    """Edita um estorno de cartão de crédito."""
+    user = request.user
+    
+    try:
+        refund = CreditCardRefund.objects.get(id=refund_id, user=user)
+    except CreditCardRefund.DoesNotExist:
+        messages.error(request, "Estorno não encontrado.")
+        return redirect('finance:credit_card_refunds')
+    
+    if request.method == 'POST':
+        try:
+            credit_card_id = request.POST.get('credit_card')
+            amount_str = request.POST.get('amount', '').strip()
+            description = request.POST.get('description', '').strip()
+            refund_date_str = request.POST.get('refund_date')
+            invoice_year = int(request.POST.get('invoice_year'))
+            invoice_month = int(request.POST.get('invoice_month'))
+            
+            if not credit_card_id or not amount_str or not description or not refund_date_str:
+                messages.error(request, "Todos os campos são obrigatórios.")
+                return redirect('finance:edit_credit_card_refund', refund_id=refund_id)
+            
+            try:
+                credit_card = CreditCard.objects.get(id=credit_card_id, user=user)
+            except CreditCard.DoesNotExist:
+                messages.error(request, "Cartão de crédito não encontrado.")
+                return redirect('finance:edit_credit_card_refund', refund_id=refund_id)
+            
+            amount = Decimal(amount_str.replace(',', '.'))
+            refund_date = datetime.strptime(refund_date_str, '%Y-%m-%d').date()
+            
+            # Validar valores
+            if amount <= 0:
+                messages.error(request, "O valor do estorno deve ser maior que zero.")
+                return redirect('finance:edit_credit_card_refund', refund_id=refund_id)
+            
+            if invoice_month < 1 or invoice_month > 12:
+                messages.error(request, "Mês inválido.")
+                return redirect('finance:edit_credit_card_refund', refund_id=refund_id)
+            
+            # Atualizar estorno
+            old_amount = refund.amount
+            refund.credit_card = credit_card
+            refund.amount = amount
+            refund.description = description
+            refund.refund_date = refund_date
+            refund.invoice_year = invoice_year
+            refund.invoice_month = invoice_month
+            refund.save()
+            
+            log_action(
+                user,
+                f"Editou estorno de cartão: {credit_card.name}",
+                f"Valor anterior: R$ {old_amount}, Novo valor: R$ {amount}, Data: {refund_date.strftime('%d/%m/%Y')}, Fatura: {invoice_month}/{invoice_year}"
+            )
+            
+            messages.success(request, "Estorno atualizado com sucesso.")
+            return redirect('finance:credit_card_refunds')
+        
+        except ValueError as e:
+            messages.error(request, f"Erro ao processar os dados: {str(e)}")
+            return redirect('finance:edit_credit_card_refund', refund_id=refund_id)
+        except Exception as e:
+            messages.error(request, f"Erro ao atualizar estorno: {str(e)}")
+            return redirect('finance:edit_credit_card_refund', refund_id=refund_id)
+    
+    # GET: mostrar formulário de edição
+    credit_cards = CreditCard.objects.filter(user=user).order_by('name')
+    context = {
+        'refund': refund,
+        'credit_cards': credit_cards,
+    }
+    return render(request, 'finance/edit_credit_card_refund.html', context)
+
+
+@login_required
+def delete_credit_card_refund_view(request, refund_id):
+    """Deleta um estorno de cartão de crédito."""
+    user = request.user
+    
+    try:
+        refund = CreditCardRefund.objects.get(id=refund_id, user=user)
+    except CreditCardRefund.DoesNotExist:
+        messages.error(request, "Estorno não encontrado.")
+        return redirect('finance:credit_card_refunds')
+    
+    if request.method == 'POST':
+        card_name = refund.credit_card.name
+        amount = refund.amount
+        invoice_month = refund.invoice_month
+        invoice_year = refund.invoice_year
+        
+        refund.delete()
+        
+        log_action(
+            user,
+            f"Deletou estorno de cartão: {card_name}",
+            f"Valor: R$ {amount}, Fatura: {invoice_month}/{invoice_year}"
+        )
+        
+        messages.success(request, "Estorno deletado com sucesso.")
+        return redirect('finance:credit_card_refunds')
+    
+    # GET: mostrar confirmação
+    context = {
+        'refund': refund,
+    }
+    return render(request, 'finance/delete_credit_card_refund.html', context)
