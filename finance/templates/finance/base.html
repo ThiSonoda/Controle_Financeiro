@@ -15,13 +15,13 @@
 </header>
 
 <nav style="position: fixed; top: 48px; left: 0; right: 0; width: 100%; max-width: 100vw; z-index: 999; box-sizing: border-box; overflow: visible;">
-    <a href="{% url 'finance:dashboard' %}">Dashboard</a>
-    <a href="{% url 'finance:transactions' %}">Lançamentos</a>
-    <a href="{% url 'finance:planning' %}">Planejamento</a>
-    <a href="{% url 'finance:all_transactions' %}">Tabela de Lançamentos</a>
-    <a href="{% url 'investment:investments' %}">Investimentos</a>
-    <a href="{% url 'finance:legends' %}">Legendas</a>
-    <a href="{% url 'finance:all_logs' %}">Logs</a>
+    <a href="{% url 'finance:dashboard' %}" {% if request.resolver_match.url_name == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
+    <a href="{% url 'finance:transactions' %}" {% if request.resolver_match.url_name == 'transactions' %}class="active"{% endif %}>Lançamentos</a>
+    <a href="{% url 'finance:planning' %}" {% if request.resolver_match.url_name == 'planning' %}class="active"{% endif %}>Planejamento</a>
+    <a href="{% url 'finance:all_transactions' %}" {% if request.resolver_match.url_name == 'all_transactions' %}class="active"{% endif %}>Tabela de Lançamentos</a>
+    <a href="{% url 'investment:investments' %}" {% if request.resolver_match.url_name == 'investments' and request.resolver_match.app_name == 'investment' %}class="active"{% endif %}>Investimentos</a>
+    <a href="{% url 'finance:legends' %}" {% if request.resolver_match.url_name == 'legends' %}class="active"{% endif %}>Legendas</a>
+    <a href="{% url 'finance:all_logs' %}" {% if request.resolver_match.url_name == 'all_logs' %}class="active"{% endif %}>Histórico</a>
 
     {% if user.is_authenticated %}
     <span style="float:right; margin-right:20px; white-space: nowrap; padding-left: 10px;">

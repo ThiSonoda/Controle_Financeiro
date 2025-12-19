@@ -167,7 +167,11 @@ def investments_view(request):
                     investment.current_balance += amount
                     investment.save()
                     
-                    log_action(request.user, f"Alocação de R$ {amount} para investimento {investment.name}")
+                    log_action(
+                        request.user,
+                        f"Alocação de R$ {amount:.2f} para investimento {investment.name}",
+                        f"Investimento ID: {investment.id}, Corretora: {investment.broker.name}, Tipo: {investment.investment_type.name}, Data: {transaction_date}"
+                    )
                     messages.success(request, f"Alocação de R$ {amount:.2f} realizada com sucesso para o investimento {investment.name}.")
                     
             except Broker.DoesNotExist:
@@ -192,7 +196,8 @@ def investments_view(request):
             
             try:
                 investment = Investment.objects.get(id=investment_id)
-                diff = new_balance - investment.current_balance
+                old_balance = investment.current_balance
+                diff = new_balance - old_balance
                 
                 InvestmentTransaction.objects.create(
                     investment=investment,
@@ -205,7 +210,11 @@ def investments_view(request):
                 investment.current_balance = new_balance
                 investment.save()
                 
-                log_action(request.user, f"Saldo atualizado do investimento {investment.name}: R$ {new_balance}")
+                log_action(
+                    request.user,
+                    f"Saldo atualizado do investimento {investment.name}",
+                    f"Investimento ID: {investment.id}, Saldo anterior: R$ {old_balance:.2f}, Novo saldo: R$ {new_balance:.2f}, Diferença: R$ {diff:.2f}, Data: {transaction_date}"
+                )
                 messages.success(request, f"Saldo do investimento {investment.name} atualizado para R$ {new_balance:.2f}.")
                 
             except Investment.DoesNotExist:
@@ -273,7 +282,11 @@ def investments_view(request):
                     investment.current_balance += amount
                     investment.save()
                     
-                    log_action(request.user, f"Aporte de R$ {amount} adicionado ao investimento {investment.name}")
+                    log_action(
+                        request.user,
+                        f"Aporte de R$ {amount:.2f} adicionado ao investimento {investment.name}",
+                        f"Investimento ID: {investment.id}, Corretora: {investment.broker.name}, Tipo: {investment.investment_type.name}, Data: {transaction_date}"
+                    )
                     messages.success(request, f"Aporte de R$ {amount:.2f} adicionado com sucesso ao investimento {investment.name}.")
                     
             except Investment.DoesNotExist:
@@ -307,6 +320,9 @@ def investments_view(request):
                     
                     account = Account.objects.get(id=account_id)
                     
+                    # Capturar saldo antes do resgate
+                    old_balance = investment.current_balance
+                    
                     # Criar InvestmentTransaction
                     InvestmentTransaction.objects.create(
                         investment=investment,
@@ -328,7 +344,11 @@ def investments_view(request):
                         balance=F('balance') + amount
                     )
                     
-                    log_action(request.user, f"Resgate de investimento {investment.name}: R$ {amount} creditado na conta {account.name}")
+                    log_action(
+                        request.user,
+                        f"Resgate de investimento {investment.name}",
+                        f"Investimento ID: {investment.id}, Valor resgatado: R$ {amount:.2f}, Saldo anterior: R$ {old_balance:.2f}, Saldo restante: R$ {investment.current_balance:.2f}, Conta destino: {account.name} (ID: {account.id}), Data: {transaction_date}"
+                    )
                     messages.success(request, f"Resgate de R$ {amount:.2f} realizado com sucesso. Valor creditado na conta {account.name}.")
                     
             except Investment.DoesNotExist:
@@ -354,7 +374,11 @@ def investments_view(request):
                 investment.status = status
                 investment.save()
                 
-                log_action(request.user, f"Status do investimento {investment.name} alterado de {old_status} para {status}")
+                log_action(
+                    request.user,
+                    f"Status do investimento {investment.name} alterado",
+                    f"Investimento ID: {investment.id}, Status anterior: {old_status}, Novo status: {status}"
+                )
                 messages.success(request, f"Status do investimento {investment.name} alterado para '{investment.get_status_display()}'.")
                 
             except Investment.DoesNotExist:
@@ -391,7 +415,11 @@ def investments_view(request):
                 investment.name = name
                 investment.save()
                 
-                log_action(request.user, f"Investimento editado: {old_name} -> {investment.name}")
+                log_action(
+                    request.user,
+                    f"Investimento editado: {old_name} -> {investment.name}",
+                    f"Investimento ID: {investment.id}, Corretora: {broker.name}, Tipo: {investment_type.name}, Nome anterior: {old_name}, Novo nome: {investment.name}"
+                )
                 messages.success(request, f"Investimento atualizado com sucesso.")
                 
             except Investment.DoesNotExist:

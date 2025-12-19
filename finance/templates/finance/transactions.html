@@ -41,10 +41,18 @@
   #subcategory_info_section {
     width: 100%;
     height: 100%;
-    display: none;
+    display: flex;
     flex-direction: column;
+    background-color: #f9f9f9;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    box-sizing: border-box;
   }
   
+  #subcategory_info_section.hidden {
+    display: none;
+  }
   
   #subcategory_chart_label {
     font-size: 12px;
@@ -54,6 +62,11 @@
     text-align: center;
     word-wrap: break-word;
     line-height: 1.3;
+    min-height: 16px;
+  }
+  
+  #subcategory_chart_label:empty {
+    display: none;
   }
   
   #subcategory_chart_container {
@@ -68,6 +81,24 @@
   #subcategoryChart {
     width: 100% !important;
     height: 100% !important;
+  }
+  
+  #subcategory_chart_placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 11px;
+    text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
+    z-index: 2;
+  }
+  
+  #subcategory_chart_placeholder.hidden {
+    display: none;
   }
   
   @media (max-width: 1200px) {
@@ -282,10 +313,16 @@
 
   <!-- Coluna do Meio: Gráfico de Barra Simplificado -->
   <aside class="middle-column">
-    <div id="subcategory_info_section" style="display: none;">
+    <div id="subcategory_info_section">
       <div id="subcategory_chart_label"></div>
       <div id="subcategory_chart_container">
-        <canvas id="subcategoryChart" style="max-width: 100%; max-height: 100%;"></canvas>
+        <canvas id="subcategoryChart" style="max-width: 100%; max-height: 100%; display: none;"></canvas>
+        <div id="subcategory_chart_placeholder">
+          <div>
+            <div style="font-size: 24px; margin-bottom: 8px;">📊</div>
+            <div>Gráfico de Subcategoria</div>
+          </div>
+        </div>
       </div>
     </div>
   </aside>
@@ -843,11 +880,27 @@
     const monthInput = document.getElementById('invoice_month');
     const infoSection = document.getElementById('subcategory_info_section');
     const chartCanvas = document.getElementById('subcategoryChart');
+    const chartPlaceholder = document.getElementById('subcategory_chart_placeholder');
     
     // Verificar se campos obrigatórios estão preenchidos (data, valor e subcategoria)
     if (!dateInput || !dateInput.value || !amountInput || !amountInput.value || !subcategoryInput || !subcategoryInput.value) {
-      infoSection.style.display = 'none';
+      // Mostrar placeholder quando campos não estão preenchidos
+      infoSection.classList.remove('hidden');
+      if (chartPlaceholder) {
+        chartPlaceholder.classList.remove('hidden');
+      }
+      if (chartCanvas) {
+        chartCanvas.style.display = 'none';
+      }
+      // Limpar label da subcategoria
+      const chartLabel = document.getElementById('subcategory_chart_label');
+      if (chartLabel) {
+        chartLabel.textContent = '';
+      }
       if (subcategoryChartInstance) {
+        if (subcategoryChartInstance._resizeHandler) {
+          window.removeEventListener('resize', subcategoryChartInstance._resizeHandler);
+        }
         subcategoryChartInstance.destroy();
         subcategoryChartInstance = null;
       }
@@ -877,8 +930,23 @@
       year = parseInt(yearInput.value);
       month = parseInt(monthInput.value);
     } else {
-      infoSection.style.display = 'none';
+      // Mostrar placeholder quando não há data
+      infoSection.classList.remove('hidden');
+      if (chartPlaceholder) {
+        chartPlaceholder.classList.remove('hidden');
+      }
+      if (chartCanvas) {
+        chartCanvas.style.display = 'none';
+      }
+      // Limpar label da subcategoria
+      const chartLabel = document.getElementById('subcategory_chart_label');
+      if (chartLabel) {
+        chartLabel.textContent = '';
+      }
       if (subcategoryChartInstance) {
+        if (subcategoryChartInstance._resizeHandler) {
+          window.removeEventListener('resize', subcategoryChartInstance._resizeHandler);
+        }
         subcategoryChartInstance.destroy();
         subcategoryChartInstance = null;
       }
@@ -939,10 +1007,29 @@
           
           // Criar ou atualizar o gráfico
           if (typeof Chart !== 'undefined' && chartCanvas) {
+            // Esconder placeholder e mostrar canvas
+            if (chartPlaceholder) {
+              chartPlaceholder.classList.add('hidden');
+            }
+            chartCanvas.style.display = 'block';
+            
+            // Definir tamanho do canvas manualmente antes de criar o gráfico
+            const chartContainer = document.getElementById('subcategory_chart_container');
+            if (chartContainer) {
+              const containerWidth = chartContainer.offsetWidth;
+              const containerHeight = chartContainer.offsetHeight;
+              chartCanvas.width = containerWidth;
+              chartCanvas.height = containerHeight;
+            }
+            
             const ctx = chartCanvas.getContext('2d');
             
             // Destruir gráfico existente se houver
             if (subcategoryChartInstance) {
+              // Remover listener de resize se existir
+              if (subcategoryChartInstance._resizeHandler) {
+                window.removeEventListener('resize', subcategoryChartInstance._resizeHandler);
+              }
               subcategoryChartInstance.destroy();
             }
             
@@ -1028,8 +1115,9 @@
                 ]
               },
               options: {
-                responsive: true,
+                responsive: false,
                 maintainAspectRatio: false,
+                animation: true,
                 scales: {
                   y: {
                     beginAtZero: true,
@@ -1056,9 +1144,13 @@
                   tooltip: {
                     enabled: false
                   }
-                }
+                },
               }
             });
+            
+            // NÃO adicionar nenhum listener de resize automático
+            // O gráfico manterá seu tamanho inicial e não será redimensionado automaticamente
+            // Isso evita loops infinitos causados por zoom do navegador
           }
           
           // Atualizar legenda com o nome da subcategoria
@@ -1068,10 +1160,25 @@
           }
           
           // Exibir a seção
-          infoSection.style.display = 'flex';
+          infoSection.classList.remove('hidden');
         } else {
-          infoSection.style.display = 'none';
+          // Mostrar placeholder quando não houver dados
+          infoSection.classList.remove('hidden');
+          if (chartPlaceholder) {
+            chartPlaceholder.classList.remove('hidden');
+          }
+          if (chartCanvas) {
+            chartCanvas.style.display = 'none';
+          }
+          // Limpar label da subcategoria
+          const chartLabel = document.getElementById('subcategory_chart_label');
+          if (chartLabel) {
+            chartLabel.textContent = '';
+          }
           if (subcategoryChartInstance) {
+            if (subcategoryChartInstance._resizeHandler) {
+              window.removeEventListener('resize', subcategoryChartInstance._resizeHandler);
+            }
             subcategoryChartInstance.destroy();
             subcategoryChartInstance = null;
           }
@@ -1079,8 +1186,23 @@
       })
       .catch(error => {
         console.error('Erro ao buscar informações da subcategoria:', error);
-        infoSection.style.display = 'none';
+        // Mostrar placeholder em caso de erro
+        infoSection.classList.remove('hidden');
+        if (chartPlaceholder) {
+          chartPlaceholder.classList.remove('hidden');
+        }
+        if (chartCanvas) {
+          chartCanvas.style.display = 'none';
+        }
+        // Limpar label da subcategoria
+        const chartLabel = document.getElementById('subcategory_chart_label');
+        if (chartLabel) {
+          chartLabel.textContent = '';
+        }
         if (subcategoryChartInstance) {
+          if (subcategoryChartInstance._resizeHandler) {
+            window.removeEventListener('resize', subcategoryChartInstance._resizeHandler);
+          }
           subcategoryChartInstance.destroy();
           subcategoryChartInstance = null;
         }

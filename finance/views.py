@@ -883,7 +883,7 @@ def budget_view(request):
     if request.method == 'POST':
         year = int(request.POST.get('year', today.year))
         month = int(request.POST.get('month', today.month))
-        
+
         # Salvar na sessão compartilhada
         request.session['shared_year'] = year
         request.session['shared_month'] = month
@@ -1271,7 +1271,7 @@ def planning_view(request):
             diff = budget - spent  # Orçado - Gasto
         
         percent = (spent / budget * 100) if budget > 0 else None
-        
+
         # Inicializar categoria se não existir
         if category_id not in categories_dict:
             categories_dict[category_id] = {
@@ -1306,7 +1306,7 @@ def planning_view(request):
             'diff': diff,
             'percent': percent,
         })
-        
+
         # Acumular totais da categoria
         categories_dict[category_id]['total_budget'] += budget
         categories_dict[category_id]['total_spent'] += spent
@@ -1441,7 +1441,7 @@ def planning_view(request):
             (c['category_name'] or 'Sem categoria').lower()
         )
     )
-    
+
     context = {
         'year': year,
         'month': month,
