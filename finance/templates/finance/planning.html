@@ -76,6 +76,13 @@
     visibility: visible;
     opacity: 1;
   }
+  
+  /* Estilo para diferença modificada */
+  .difference-modified {
+    background-color: #fff3cd !important;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+  }
 </style>
 
 <h1>Planejamento - Gasto x Orçado</h1>
@@ -190,7 +197,11 @@
 <!-- Resumo em Tempo Real do Modo de Edição -->
 <div id="editModeSummary" style="position: sticky; top: 10px; z-index: 1000; background-color: #e3f2fd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 2px solid #2196F3; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
   <h3 style="margin-top: 0; color: #1976d2;">Resumo do Orçamento (Atualização em Tempo Real)</h3>
-  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+    <div>
+      <strong>Saldo Projetado:</strong><br>
+      <span id="editModeProjectedBalance" style="font-size: 18px; font-weight: bold;">R$ 0.00</span>
+    </div>
     <div>
       <strong>Total Receitas:</strong><br>
       <span id="editModeTotalIncome" style="font-size: 18px; color: #2e7d32; font-weight: bold;">R$ 0.00</span>
@@ -200,7 +211,7 @@
       <span id="editModeTotalExpenses" style="font-size: 18px; color: #c62828; font-weight: bold;">R$ 0.00</span>
     </div>
     <div>
-      <strong>Saldo Final:</strong><br>
+      <strong>Diferença:</strong><br>
       <span id="editModeBalance" style="font-size: 18px; font-weight: bold;">R$ 0.00</span>
     </div>
   </div>
@@ -271,11 +282,12 @@
                     <input type="number" 
                            class="budget-input" 
                            data-category-type="income" 
+                           data-subcategory-id="{{ subcat.subcategory_id }}"
                            name="budget_{{ subcat.subcategory_id }}"
                            step="0.01" 
                            min="0" 
                            value="{{ subcat.budget_str|default:'0.00' }}" 
-                           oninput="updateEditModeSummary()" 
+                           oninput="updateEditModeSummary(); updateDifference({{ subcat.subcategory_id }});" 
                            style="width: 100%; box-sizing: border-box;">
                   </div>
                   <div id="budget-items-{{ subcat.subcategory_id }}" data-category-type="income" style="{% if not subcat.use_items %}display: none;{% endif %}">
@@ -294,7 +306,7 @@
                                  step="0.01" 
                                  min="0" 
                                  placeholder="Valor" 
-                                 oninput="updateItemsTotal({{ subcat.subcategory_id }})"
+                                 oninput="updateItemsTotal({{ subcat.subcategory_id }}); updateDifference({{ subcat.subcategory_id }});"
                                  style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
                           <button type="button" 
                                   onclick="removeBudgetItem(this, {{ subcat.subcategory_id }})" 
@@ -366,7 +378,15 @@
                   R$ {{ subcat.spent|floatformat:2 }}
                 {% endif %}
               </td>
-              <td>R$ {{ subcat.diff|floatformat:2 }}</td>
+              <td id="diff-{{ subcat.subcategory_id }}" 
+                  class="difference-cell" 
+                  data-subcategory-id="{{ subcat.subcategory_id }}"
+                  data-original-budget="{{ subcat.budget|default:0 }}"
+                  data-spent="{{ subcat.spent|default:0 }}"
+                  data-category-type="income"
+                  data-original-diff="{{ subcat.diff|default:0 }}">
+                R$ {{ subcat.diff|floatformat:2 }}
+              </td>
               <td>
                 {% if subcat.percent %}
                   {{ subcat.percent|floatformat:1 }}%
@@ -462,11 +482,12 @@
                     <input type="number" 
                            class="budget-input" 
                            data-category-type="expense" 
+                           data-subcategory-id="{{ subcat.subcategory_id }}"
                            name="budget_{{ subcat.subcategory_id }}"
                            step="0.01" 
                            min="0" 
                            value="{{ subcat.budget_str|default:'0.00' }}" 
-                           oninput="updateEditModeSummary()" 
+                           oninput="updateEditModeSummary(); updateDifference({{ subcat.subcategory_id }});" 
                            style="width: 100%; box-sizing: border-box;">
                   </div>
                   <div id="budget-items-{{ subcat.subcategory_id }}" data-category-type="expense" style="{% if not subcat.use_items %}display: none;{% endif %}">
@@ -485,7 +506,7 @@
                                  step="0.01" 
                                  min="0" 
                                  placeholder="Valor" 
-                                 oninput="updateItemsTotal({{ subcat.subcategory_id }})"
+                                 oninput="updateItemsTotal({{ subcat.subcategory_id }}); updateDifference({{ subcat.subcategory_id }});"
                                  style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
                           <button type="button" 
                                   onclick="removeBudgetItem(this, {{ subcat.subcategory_id }})" 
@@ -557,8 +578,16 @@
                   R$ {{ subcat.spent|floatformat:2 }}
                 {% endif %}
               </td>
-              <td>R$ {{ subcat.diff|floatformat:2 }}</td>
-          <td>
+              <td id="diff-{{ subcat.subcategory_id }}" 
+                  class="difference-cell" 
+                  data-subcategory-id="{{ subcat.subcategory_id }}"
+                  data-original-budget="{{ subcat.budget|default:0 }}"
+                  data-spent="{{ subcat.spent|default:0 }}"
+                  data-category-type="expense"
+                  data-original-diff="{{ subcat.diff|default:0 }}">
+                R$ {{ subcat.diff|floatformat:2 }}
+              </td>
+              <td>
                 {% if subcat.percent %}
                   {{ subcat.percent|floatformat:1 }}%
             {% else %}
@@ -1698,6 +1727,98 @@ function updateEditModeSummary() {
   const balanceElement = document.getElementById('editModeBalance');
   balanceElement.textContent = 'R$ ' + balance.toFixed(2);
   balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
+  
+  // Calcular Saldo Projetado em tempo real
+  // Fórmula: projected_balance = saldo_projetado_mes_anterior + budget_diff
+  // Onde budget_diff = receitas_orçadas - despesas_orçadas (calculado em tempo real)
+  // Para atualização em tempo real durante edição:
+  // projected_balance_atual = projected_balance_inicial - budget_diff_inicial + budget_diff_atual
+  const initialProjectedBalance = parseFloat('{{ projected_balance|default:0 }}') || 0;
+  const initialBudgetDiff = parseFloat('{{ budget_diff|default:0 }}') || 0;
+  const currentBudgetDiff = totalIncome - totalExpenses;
+  const projectedBalance = initialProjectedBalance - initialBudgetDiff + currentBudgetDiff;
+  
+  const projectedBalanceElement = document.getElementById('editModeProjectedBalance');
+  projectedBalanceElement.textContent = 'R$ ' + projectedBalance.toFixed(2);
+  projectedBalanceElement.style.color = projectedBalance >= 0 ? '#2e7d32' : '#c62828';
+}
+
+// Função para atualizar a diferença em tempo real quando o valor orçado é editado
+function updateDifference(subcategoryId) {
+  const diffElement = document.getElementById('diff-' + subcategoryId);
+  if (!diffElement) return;
+  
+  // Função auxiliar para normalizar valores decimais (converter vírgula para ponto e parseFloat)
+  function parseDecimal(value) {
+    if (typeof value === 'string') {
+      // Substituir vírgula por ponto e remover espaços
+      value = value.replace(',', '.').trim();
+    }
+    const parsed = parseFloat(value);
+    // Arredondar para 2 casas decimais para evitar problemas de precisão
+    return isNaN(parsed) ? 0 : Math.round(parsed * 100) / 100;
+  }
+  
+  // Obter valores dos data attributes e normalizar
+  const categoryType = diffElement.getAttribute('data-category-type');
+  const spentStr = diffElement.getAttribute('data-spent') || '0';
+  const originalBudgetStr = diffElement.getAttribute('data-original-budget') || '0';
+  const originalDiffStr = diffElement.getAttribute('data-original-diff') || '0';
+  
+  const spent = parseDecimal(spentStr);
+  const originalBudget = parseDecimal(originalBudgetStr);
+  const originalDiff = parseDecimal(originalDiffStr);
+  
+  // Obter valor orçado atual (pode ser do input direto ou dos itens)
+  let currentBudget = 0;
+  const budgetCell = diffElement.closest('tr').querySelector('.budget-cell');
+  if (budgetCell) {
+    const checkbox = document.querySelector(`.use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+    
+    if (checkbox && checkbox.checked) {
+      // Modo itens: usar o total dos itens
+      const itemsTotalSpan = document.getElementById('items-total-' + subcategoryId);
+      if (itemsTotalSpan) {
+        currentBudget = parseDecimal(itemsTotalSpan.textContent);
+      }
+    } else {
+      // Modo direto: usar o valor do input
+      const budgetInput = document.querySelector(`.budget-input[data-subcategory-id="${subcategoryId}"]`);
+      if (budgetInput) {
+        currentBudget = parseDecimal(budgetInput.value);
+      }
+    }
+  }
+  
+  // Normalizar o valor atual
+  currentBudget = parseDecimal(currentBudget);
+  
+  // Calcular diferença baseado no tipo de categoria
+  // Receitas: Recebido - Orçado
+  // Despesas: Orçado - Gasto
+  let diff = 0;
+  if (categoryType === 'income') {
+    diff = spent - currentBudget;  // Recebido - Orçado
+  } else {
+    diff = currentBudget - spent;  // Orçado - Gasto
+  }
+  
+  // Arredondar diferença para 2 casas decimais
+  diff = Math.round(diff * 100) / 100;
+  
+  // Atualizar o elemento
+  diffElement.textContent = 'R$ ' + diff.toFixed(2);
+  diffElement.style.color = diff >= 0 ? '#2e7d32' : '#c62828';
+  
+  // Verificar se o valor foi modificado comparando com o original
+  const tolerance = 0.005; // Tolerância de 0.5 centavos para comparação de float
+  const isModified = Math.abs(diff - originalDiff) > tolerance || Math.abs(currentBudget - originalBudget) > tolerance;
+  
+  if (isModified) {
+    diffElement.classList.add('difference-modified');
+  } else {
+    diffElement.classList.remove('difference-modified');
+  }
 }
 
 // Nota: O resumo será atualizado após o DOMContentLoaded garantir que os totais dos itens sejam calculados
@@ -1761,6 +1882,7 @@ function toggleBudgetMode(subcategoryId) {
     hiddenInput.value = '';
   }
   updateEditModeSummary();
+  updateDifference(subcategoryId);
 }
 
 function addBudgetItem(subcategoryId) {
@@ -1784,7 +1906,7 @@ function addBudgetItem(subcategoryId) {
            step="0.01" 
            min="0" 
            placeholder="Valor" 
-           oninput="updateItemsTotal(${subcategoryId})"
+           oninput="updateItemsTotal(${subcategoryId}); updateDifference(${subcategoryId});"
            style="width: 100px; padding: 4px; box-sizing: border-box; font-size: 12px;">
     <button type="button" 
             onclick="removeBudgetItem(this, ${subcategoryId})" 
@@ -1799,6 +1921,7 @@ function removeBudgetItem(button, subcategoryId) {
   button.closest('.budget-item-row').remove();
   updateItemsTotal(subcategoryId);
   updateEditModeSummary();
+  updateDifference(subcategoryId);
 }
 
 function updateItemsTotal(subcategoryId) {
@@ -1806,12 +1929,24 @@ function updateItemsTotal(subcategoryId) {
   const rows = container.querySelectorAll('.budget-item-row');
   let total = 0;
   
+  // Função auxiliar para normalizar valores decimais
+  function parseDecimal(value) {
+    if (typeof value === 'string') {
+      value = value.replace(',', '.').trim();
+    }
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? 0 : Math.round(parsed * 100) / 100;
+  }
+  
   rows.forEach(row => {
     const valueInput = row.querySelector('input[type="number"]');
     if (valueInput && valueInput.value) {
-      total += parseFloat(valueInput.value) || 0;
+      total += parseDecimal(valueInput.value);
     }
   });
+  
+  // Arredondar o total para 2 casas decimais
+  total = Math.round(total * 100) / 100;
   
   const totalSpan = document.getElementById(`items-total-${subcategoryId}`);
   if (totalSpan) {
@@ -1819,6 +1954,7 @@ function updateItemsTotal(subcategoryId) {
   }
   
   updateEditModeSummary();
+  updateDifference(subcategoryId);
 }
 
 function toggleBudgetItems(subcategoryId) {
@@ -1844,6 +1980,14 @@ document.addEventListener('DOMContentLoaded', function() {
   if (document.getElementById('editModeSummary')) {
     updateEditModeSummary();
   }
+  
+  // Inicializar diferenças para todas as subcategorias
+  document.querySelectorAll('.difference-cell').forEach(cell => {
+    const subcatId = cell.getAttribute('data-subcategory-id');
+    if (subcatId) {
+      updateDifference(parseInt(subcatId));
+    }
+  });
 });
 
 // Ajustar posição do tooltip para primeiras linhas da tabela

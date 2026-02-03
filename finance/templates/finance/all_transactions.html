@@ -198,10 +198,15 @@
 {% if transactions %}
   <form id="bulk_delete_form" method="post" action="{% url 'finance:bulk_delete_transactions' %}" onsubmit="return confirmBulkDelete();">
     {% csrf_token %}
-    <div style="margin-bottom: 15px;">
+    <div style="margin-bottom: 15px; display:flex; gap:12px; align-items:center;">
       <button type="submit" style="padding: 8px 16px; background: #c62828; color: white; border: none; border-radius: 4px; cursor: pointer;">
         Deletar Selecionados
       </button>
+
+      <button type="button" id="btn-bulk-change-payment" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer;">
+        Alterar data
+      </button>
+
       <span id="selected_count" style="margin-left: 15px; color: #666; font-weight: bold;"></span>
     </div>
 
@@ -227,7 +232,7 @@
       {% for t in transactions %}
         <tr>
           <td style="text-align: center;">
-            <input type="checkbox" name="transaction_ids" value="{{ t.id }}" class="transaction_checkbox" onchange="updateSelectedCount()">
+            <input type="checkbox" name="transaction_ids" value="{{ t.id }}" class="transaction_checkbox" onchange="updateSelectedCount()" data-is-installment="{{ t.is_installment|yesno:'1,0' }}" data-installment-group="{{ t.installment_group }}">
           </td>
           <td>{{ t.date|date:"d/m/Y" }}</td>
           <td>
@@ -307,6 +312,26 @@
     </tfoot>
   </table>
   </form>
+
+  <!-- Modal para alterar data de pagamento em massa -->
+  <div id="bulk-payment-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center; z-index:2000;">
+    <div style="background:white; padding:18px; border-radius:8px; width:420px; max-width:95%; box-shadow:0 6px 24px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0; margin-bottom:8px;">Alterar data de pagamento</h3>
+      <div style="margin-bottom:8px;">
+        <label for="bulk-new-date" style="display:block; font-weight:600; margin-bottom:6px;">Nova data de pagamento:</label>
+        <input type="date" id="bulk-new-date" style="width:100%; padding:8px; box-sizing:border-box;">
+      </div>
+      <div id="bulk-parcel-options" style="margin-bottom:8px; display:none;">
+        <label style="display:block; font-weight:600; margin-bottom:6px;">Itens parcelados selecionados:</label>
+        <label style="display:flex; gap:8px; align-items:center;"><input type="radio" name="bulk-parcel-option" value="single" checked> Alterar apenas a(s) parcela(s) selecionada(s)</label>
+        <label style="display:flex; gap:8px; align-items:center;"><input type="radio" name="bulk-parcel-option" value="all"> Alterar todas as parcelas remanescentes do(s) item(s) selecionado(s)</label>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" id="bulk-cancel-btn" style="padding:8px 12px; border-radius:6px;">Cancelar</button>
+        <button type="button" id="bulk-confirm-btn" style="padding:8px 12px; border-radius:6px; background:#1976d2; color:white; border:none;">Confirmar</button>
+      </div>
+    </div>
+  </div>
   
   <!-- Controles de Paginação -->
   <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
@@ -552,6 +577,113 @@
       }
     });
   })();
+</script>
+
+<script>
+  // Helpers
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const btn = document.getElementById('btn-bulk-change-payment');
+    const modal = document.getElementById('bulk-payment-modal');
+    const cancelBtn = document.getElementById('bulk-cancel-btn');
+    const confirmBtn = document.getElementById('bulk-confirm-btn');
+
+    if (!btn || !modal || !cancelBtn || !confirmBtn) return;
+
+    btn.addEventListener('click', function() {
+      const selected = Array.from(document.querySelectorAll('.transaction_checkbox:checked'));
+      if (selected.length === 0) {
+        alert('Nenhum item selecionado. Selecione pelo menos um lançamento.');
+        return;
+      }
+
+      // Mostrar opções de parcelamento se houver pelo menos um parcelado selecionado
+      const hasInstallment = selected.some(el => el.getAttribute('data-is-installment') === '1');
+      const parcelOptions = document.getElementById('bulk-parcel-options');
+      if (parcelOptions) {
+        parcelOptions.style.display = hasInstallment ? 'block' : 'none';
+      }
+
+      // Limpar campo de data
+      const dateField = document.getElementById('bulk-new-date');
+      if (dateField) dateField.value = '';
+
+      modal.style.display = 'flex';
+    });
+
+    cancelBtn.addEventListener('click', function() {
+      modal.style.display = 'none';
+    });
+
+    // Fechar modal ao clicar fora do conteúdo
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) modal.style.display = 'none';
+    });
+
+    confirmBtn.addEventListener('click', function() {
+      const dateInput = document.getElementById('bulk-new-date').value;
+      if (!dateInput) {
+        alert('Por favor, informe a nova data de pagamento.');
+        return;
+      }
+
+      const selectedEls = Array.from(document.querySelectorAll('.transaction_checkbox:checked'));
+      if (selectedEls.length === 0) {
+        alert('Nenhum item selecionado.');
+        modal.style.display = 'none';
+        return;
+      }
+
+      // Corrigir seletor (antes causava erro de sintaxe)
+      const parcelOptionEl = document.querySelector('input[name="bulk-parcel-option"]:checked');
+      const parcelOption = parcelOptionEl ? parcelOptionEl.value : 'single';
+
+      if (!confirm('Confirma alterar a data de pagamento dos itens selecionados para ' + dateInput + '?')) {
+        return;
+      }
+
+      const ids = selectedEls.map(el => el.value || el.getAttribute('value'));
+
+      fetch('{% url "finance:bulk_update_payment_date" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ transaction_ids: ids, new_date: dateInput, parcel_option: parcelOption })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.success) {
+          alert('Atualizado com sucesso. Itens alterados: ' + data.updated + (data.errors && data.errors.length ? ('; erros: ' + data.errors.join(', ')) : ''));
+          window.location.reload();
+        } else {
+          alert('Erro: ' + (data.error || 'Falha ao atualizar.'));
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        alert('Erro de rede ao tentar atualizar.');
+      })
+      .finally(() => {
+        modal.style.display = 'none';
+      });
+    });
+  });
 </script>
 
 {% endblock %}

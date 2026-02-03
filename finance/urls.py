@@ -27,6 +27,7 @@ urlpatterns = [
     path('legends/', views.legends_view, name='legends'),
     path('subcategory-budget-info/', views.subcategory_budget_info_view, name='subcategory_budget_info'),
     path('subcategory-transactions/', views.subcategory_transactions_view, name='subcategory_transactions'),
+    path('transactions/bulk-update-payment-date/', views.bulk_update_payment_date_view, name='bulk_update_payment_date'),
     path('credit-card-refunds/', views.credit_card_refunds_view, name='credit_card_refunds'),
     path('credit-card-refunds/create/', views.create_credit_card_refund_view, name='create_credit_card_refund'),
     path('credit-card-refunds/<int:refund_id>/edit/', views.edit_credit_card_refund_view, name='edit_credit_card_refund'),

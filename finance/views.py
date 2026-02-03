@@ -4,11 +4,12 @@ import calendar
 import uuid
 import json
 from decimal import Decimal
+from collections import defaultdict
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Sum, Value, DecimalField, Q, F, Case, When
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Lower
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.contrib import messages
@@ -341,7 +342,11 @@ def transactions_view(request):
             payment_method_param = credit_card_id if credit_card_id else 'debit'
             # Redireciona com os IDs das transações criadas e preserva o filtro de método de pagamento
             ids_param = ','.join(map(str, created_transaction_ids))
-            return redirect(f"{reverse('finance:transactions')}?highlight={ids_param}&payment_method={payment_method_param}")
+            redirect_url = f"{reverse('finance:transactions')}?highlight={ids_param}&payment_method={payment_method_param}"
+            # Preservar owner_tag se houver um cartão Bradesco
+            if credit_card and owner_tag and 'bradesco' in credit_card.name.lower():
+                redirect_url += f"&owner_tag={owner_tag}"
+            return redirect(redirect_url)
         else:
             # Lançamento normal (uma única transação)
             # date = data de lançamento (data informada pelo usuário)
@@ -381,7 +386,11 @@ def transactions_view(request):
             # Determinar payment_method para preservar o filtro na tabela
             payment_method_param = credit_card_id if credit_card_id else 'debit'
             # Redireciona com o ID da transação criada e preserva o filtro de método de pagamento
-            return redirect(f"{reverse('finance:transactions')}?highlight={transaction.id}&payment_method={payment_method_param}")
+            redirect_url = f"{reverse('finance:transactions')}?highlight={transaction.id}&payment_method={payment_method_param}"
+            # Preservar owner_tag se houver um cartão Bradesco
+            if credit_card and owner_tag and 'bradesco' in credit_card.name.lower():
+                redirect_url += f"&owner_tag={owner_tag}"
+            return redirect(redirect_url)
 
     # GET
     subcategories = Subcategory.objects.all().select_related('category').order_by('category__name', 'name')
@@ -573,6 +582,73 @@ def bulk_delete_transactions_view(request):
         return_url = reverse('finance:all_transactions')
     
     return redirect(return_url)
+
+
+@login_required
+def bulk_update_payment_date_view(request):
+    """
+    Atualiza a `payment_date` de múltiplas transações selecionadas.
+    Aceita POST com JSON body {"transaction_ids": [..], "new_date": "YYYY-MM-DD", "parcel_option": "single"|"all"}
+    Se `parcel_option` for "all" e a transação pertencer a um `installment_group`, atualiza as parcelas remanescentes desse grupo.
+    Retorna JsonResponse com resumo do resultado.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+
+    user = request.user
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'success': False, 'error': 'JSON inválido'}, status=400)
+
+    transaction_ids = payload.get('transaction_ids') or []
+    new_date_str = payload.get('new_date')
+    parcel_option = payload.get('parcel_option', 'single')
+
+    if not transaction_ids:
+        return JsonResponse({'success': False, 'error': 'Nenhum lançamento selecionado.'}, status=400)
+
+    if not new_date_str:
+        return JsonResponse({'success': False, 'error': 'Nova data de pagamento não informada.'}, status=400)
+
+    try:
+        new_date = datetime.strptime(new_date_str, '%Y-%m-%d').date()
+    except Exception:
+        return JsonResponse({'success': False, 'error': 'Formato de data inválido. Use YYYY-MM-DD.'}, status=400)
+
+    updated = 0
+    errors = []
+
+    from django.db import transaction as db_transaction
+
+    with db_transaction.atomic():
+        for tid in transaction_ids:
+            try:
+                t = Transaction.objects.select_for_update().get(id=tid)
+            except Transaction.DoesNotExist:
+                errors.append(f"Lançamento {tid} não encontrado")
+                continue
+
+            # Se solicitar alterar todas as parcelas e a transação for parcela
+            if parcel_option == 'all' and t.installment_group:
+                group_id = t.installment_group
+                # Atualizar parcelas remanescentes do grupo: payment_date >= atual
+                remaining = Transaction.objects.filter(installment_group=group_id).filter(payment_date__gte=t.payment_date).select_for_update()
+                for r in remaining:
+                    old = r.payment_date
+                    r.payment_date = new_date
+                    r.save()
+                    updated += 1
+                    log_action(user, f"Alterou data de pagamento (parcelas) ID {r.id}", f"De {old} para {new_date}")
+            else:
+                old = t.payment_date
+                t.payment_date = new_date
+                t.save()
+                updated += 1
+                log_action(user, f"Alterou data de pagamento ID {t.id}", f"De {old} para {new_date}")
+
+    return JsonResponse({'success': True, 'updated': updated, 'errors': errors})
 
 
 @login_required
@@ -778,25 +854,61 @@ def pay_credit_card_invoice_view(request, card_id, year, month):
         messages.info(request, f"Não há fatura pendente para o cartão {card.name} em {month:02d}/{year}.")
         return redirect('finance:transactions')
     
-    total = transactions.aggregate(
+    # Calcular total das transações
+    transactions_total = transactions.aggregate(
         total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
-    )['total'] or 0
+    )['total'] or Decimal('0.00')
+    
+    # Buscar estornos para este cartão, mês e ano
+    refunds = CreditCardRefund.objects.filter(
+        credit_card=card,
+        invoice_year=year,
+        invoice_month=month
+    )
+    refunds_total = refunds.aggregate(
+        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+    )['total'] or Decimal('0.00')
+    
+    # Total da fatura = total das transações - total dos estornos
+    total = transactions_total - refunds_total
     
     if request.method == 'POST':
+        # Calcular distribuição dos estornos por conta ANTES de salvar as transações
+        # Isso garante que usamos os valores corretos
+        account_totals = defaultdict(Decimal)
+        for transaction in transactions:
+            account_totals[transaction.account] += transaction.amount
+        
         # Efetuar pagamento - marcar todas as transações como pagas
         # Usar save() individual para disparar signals e atualizar saldo das contas
         for transaction in transactions:
             transaction.is_paid = True
             transaction.save()
+        
+        # Aplicar estornos ao saldo das contas
+        # Os estornos aumentam o saldo (são devoluções de dinheiro)
+        if refunds_total > 0 and account_totals:
+            # Distribuir estornos proporcionalmente ao valor das transações de cada conta
+            for account, account_total in account_totals.items():
+                # Calcular proporção do estorno para esta conta
+                if transactions_total > 0:
+                    proportion = account_total / transactions_total
+                    refund_amount = refunds_total * proportion
+                    
+                    # Adicionar estorno ao saldo da conta
+                    Account.objects.filter(id=account.id).update(
+                        balance=F('balance') + refund_amount
+                    )
+        
         # Registrar log
         log_action(
             user,
             f"Pagou fatura do cartão {card.name}",
-            f"Mês/Ano: {month:02d}/{year}, Total: R$ {total:.2f}, {transactions.count()} transações"
+            f"Mês/Ano: {month:02d}/{year}, Total: R$ {float(total):.2f}, {transactions.count()} transações, Estornos: R$ {float(refunds_total):.2f}"
         )
         messages.success(
             request, 
-            f"Fatura do cartão {card.name} de {month:02d}/{year} no valor de R$ {total:.2f} foi paga com sucesso."
+            f"Fatura do cartão {card.name} de {month:02d}/{year} no valor de R$ {float(total):.2f} foi paga com sucesso."
         )
         return redirect('finance:transactions')
     
@@ -805,7 +917,7 @@ def pay_credit_card_invoice_view(request, card_id, year, month):
         'card': card,
         'year': year,
         'month': month,
-        'total': total,
+        'total': float(total),
         'transaction_count': transactions.count(),
     }
     return render(request, 'finance/pay_invoice.html', context)
@@ -837,25 +949,60 @@ def reopen_credit_card_invoice_view(request, card_id, year, month):
         messages.info(request, f"Não há fatura paga para reabrir do cartão {card.name} em {month:02d}/{year}.")
         return redirect('finance:transactions')
     
-    total = transactions.aggregate(
+    # Calcular total das transações
+    transactions_total = transactions.aggregate(
         total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
-    )['total'] or 0
+    )['total'] or Decimal('0.00')
+    
+    # Buscar estornos para este cartão, mês e ano
+    refunds = CreditCardRefund.objects.filter(
+        credit_card=card,
+        invoice_year=year,
+        invoice_month=month
+    )
+    refunds_total = refunds.aggregate(
+        total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+    )['total'] or Decimal('0.00')
+    
+    # Total da fatura = total das transações - total dos estornos
+    total = transactions_total - refunds_total
     
     if request.method == 'POST':
+        # Calcular distribuição dos estornos por conta ANTES de salvar as transações
+        account_totals = defaultdict(Decimal)
+        for transaction in transactions:
+            account_totals[transaction.account] += transaction.amount
+        
         # Reabrir fatura - marcar todas as transações como não pagas
         # Usar save() individual para disparar signals e atualizar saldo das contas
         for transaction in transactions:
             transaction.is_paid = False
             transaction.save()
+        
+        # Reverter estornos do saldo das contas
+        # Os estornos que foram adicionados ao saldo precisam ser revertidos
+        if refunds_total > 0 and account_totals:
+            # Reverter estornos proporcionalmente ao valor das transações de cada conta
+            for account, account_total in account_totals.items():
+                # Calcular proporção do estorno para esta conta
+                if transactions_total > 0:
+                    proportion = account_total / transactions_total
+                    refund_amount = refunds_total * proportion
+                    
+                    # Subtrair estorno do saldo da conta (reverter)
+                    Account.objects.filter(id=account.id).update(
+                        balance=F('balance') - refund_amount
+                    )
+        
         # Registrar log
         log_action(
             user,
             f"Reabriu fatura do cartão {card.name}",
-            f"Mês/Ano: {month:02d}/{year}, Total: R$ {total:.2f}, {transactions.count()} transações"
+            f"Mês/Ano: {month:02d}/{year}, Total: R$ {float(total):.2f}, {transactions.count()} transações, Estornos: R$ {float(refunds_total):.2f}"
         )
         messages.success(
             request, 
-            f"Fatura do cartão {card.name} de {month:02d}/{year} no valor de R$ {total:.2f} foi reaberta."
+            f"Fatura do cartão {card.name} de {month:02d}/{year} no valor de R$ {float(total):.2f} foi reaberta."
         )
         return redirect('finance:transactions')
     
@@ -1389,29 +1536,66 @@ def planning_view(request):
     # Diferença entre Receitas Orçadas e Despesas Orçadas
     budget_diff = income_total_budget - expense_total_budget
     
-    # Calcular receitas e despesas PAGAS para o Saldo Projetado
-    paid_income = Transaction.objects.filter(
+    # Calcular saldo inicial: saldo atual menos as transações pagas do ano atual
+    # Isso nos dá o saldo no início do ano
+    paid_income_year = Transaction.objects.filter(
         payment_date__year=year,
-        payment_date__month=month,
         type=Transaction.TYPE_INCOME,
         is_paid=True
     ).aggregate(
         total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
     )['total'] or Decimal('0.00')
-    paid_income = float(paid_income)
+    paid_income_year = float(paid_income_year)
     
-    paid_expenses = Transaction.objects.filter(
+    paid_expenses_year = Transaction.objects.filter(
         payment_date__year=year,
-        payment_date__month=month,
         type=Transaction.TYPE_EXPENSE,
         is_paid=True
     ).aggregate(
         total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
     )['total'] or Decimal('0.00')
-    paid_expenses = float(paid_expenses)
+    paid_expenses_year = float(paid_expenses_year)
     
-    # Saldo projetado = Saldo Atual + Receitas Pagas - Despesas Pagas
-    projected_balance = current_balance + paid_income - paid_expenses + budget_diff
+    # Saldo inicial = Saldo atual - receitas pagas do ano + despesas pagas do ano
+    # (as receitas aumentam o saldo, as despesas diminuem)
+    initial_balance = current_balance - paid_income_year + paid_expenses_year
+    
+    # Calcular saldo projetado do mês anterior
+    # Se for janeiro, usar o saldo inicial
+    # Caso contrário, calcular: saldo inicial + soma dos budget_diff de todos os meses anteriores
+    if month == 1:
+        previous_projected_balance = initial_balance
+    else:
+        # Calcular saldo projetado do mês anterior
+        previous_projected_balance = initial_balance
+        
+        # Somar budget_diff de todos os meses anteriores (de 1 até month-1)
+        for calc_month in range(1, month):
+            calc_income_budgets = MonthlyBudget.objects.filter(
+                user=user,
+                year=year,
+                month=calc_month,
+                subcategory__category__is_income=True
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0.00')
+            calc_income_budgets = float(calc_income_budgets)
+            
+            calc_expense_budgets = MonthlyBudget.objects.filter(
+                user=user,
+                year=year,
+                month=calc_month,
+                subcategory__category__is_income=False
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0.00')
+            calc_expense_budgets = float(calc_expense_budgets)
+            
+            calc_budget_diff = calc_income_budgets - calc_expense_budgets
+            previous_projected_balance += calc_budget_diff
+    
+    # Saldo projetado = Saldo inicial (ou saldo projetado do mês anterior) + diferença entre receitas orçadas e despesas orçadas
+    projected_balance = previous_projected_balance + budget_diff
 
     # Buscar todos os templates para o modal
     templates = BudgetTemplate.objects.all().order_by('name')
@@ -2582,7 +2766,8 @@ def legends_view(request):
     if search_query:
         legends = legends.filter(description__icontains=search_query)
     
-    legends = legends.order_by('description')
+    # Ordenar alfabeticamente sem distinguir maiúsculas de minúsculas
+    legends = legends.annotate(description_lower=Lower('description')).order_by('description_lower')
     
     # Processar POST (criar ou deletar)
     if request.method == 'POST':

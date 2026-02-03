@@ -1261,13 +1261,17 @@
     if (!selector) return;
     const buttons = Array.from(selector.querySelectorAll('.card-btn'));
     const storageKey = 'selected_card_id';
+    const storageOwnerTagKey = 'selected_owner_tag';
 
     function setActive(button, doReload = false){
       buttons.forEach(b => b.classList.toggle('active', b === button));
       const id = button.getAttribute('data-card-id') || '';
       const cardName = button.getAttribute('data-card-name') || '';
       const ownerTag = button.getAttribute('data-owner-tag') || ''; // Obter tag do botão
-      try { localStorage.setItem(storageKey, id); } catch(e) {}
+      try { 
+        localStorage.setItem(storageKey, id);
+        localStorage.setItem(storageOwnerTagKey, ownerTag); // Salvar também o owner_tag
+      } catch(e) {}
       
       // Definir automaticamente o campo hidden owner_tag baseado no nav selecionado
       const ownerTagInput = document.getElementById('id_owner_tag');
@@ -1359,6 +1363,13 @@
           const url = new URL(window.location.href);
           if (saved && saved.trim() !== '') {
             url.searchParams.set('payment_method', saved);
+            // Se houver owner_tag salvo, adicionar também
+            try {
+              const savedOwnerTag = localStorage.getItem(storageOwnerTagKey);
+              if (savedOwnerTag && savedOwnerTag.trim() !== '') {
+                url.searchParams.set('owner_tag', savedOwnerTag);
+              }
+            } catch(e) {}
           } else {
             url.searchParams.set('payment_method', 'debit');
           }
@@ -1442,10 +1453,34 @@
     
     // Se não encontrou pela URL, usar localStorage ou primeiro botão
     if (!initial) {
-      initial = buttons.find(b => {
-        const btnId = b.getAttribute('data-card-id') || '';
-        return btnId === (saved || '');
-      }) || buttons[0];
+      try {
+        const savedOwnerTag = localStorage.getItem(storageOwnerTagKey) || '';
+        // Tentar encontrar pelo ID e owner_tag
+        if (savedOwnerTag) {
+          initial = buttons.find(b => {
+            const btnId = b.getAttribute('data-card-id') || '';
+            const btnTag = b.getAttribute('data-owner-tag') || '';
+            return btnId === (saved || '') && btnTag === savedOwnerTag;
+          });
+        }
+        // Se não encontrou, procurar apenas pelo ID
+        if (!initial) {
+          initial = buttons.find(b => {
+            const btnId = b.getAttribute('data-card-id') || '';
+            return btnId === (saved || '');
+          });
+        }
+      } catch(e) {
+        // Em caso de erro, usar apenas o ID
+        initial = buttons.find(b => {
+          const btnId = b.getAttribute('data-card-id') || '';
+          return btnId === (saved || '');
+        });
+      }
+      // Se ainda não encontrou, usar o primeiro botão
+      if (!initial) {
+        initial = buttons[0];
+      }
     }
     
     setActive(initial, false); // false para não recarregar na inicialização
@@ -1475,6 +1510,7 @@
 </script>
 
 <!-- Chart.js para o gráfico de subcategoria -->
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 {% endblock %}
