@@ -68,18 +68,34 @@ class Migration(migrations.Migration):
         # 3. Remove o campo category usando SeparateDatabaseAndState
         migrations.SeparateDatabaseAndState(
             database_operations=[
-                # Operação no banco de dados: remove o campo category_id
+                # SQLite: remover todos os índices que usam category_id antes de dropar a coluna
+                # 1. Índice do unique_together (user, category, year, month)
+                migrations.RunSQL(
+                    sql="DROP INDEX IF EXISTS finance_monthlybudget_user_id_category_id_year_month_eebf948d_uniq;",
+                    reverse_sql="CREATE UNIQUE INDEX finance_monthlybudget_user_id_category_id_year_month_eebf948d_uniq ON finance_monthlybudget (user_id, category_id, year, month);",
+                ),
+                # 2. Índice da ForeignKey category (criado automaticamente pelo Django)
+                migrations.RunSQL(
+                    sql="DROP INDEX IF EXISTS finance_monthlybudget_category_id_e0ca7c00;",
+                    reverse_sql="CREATE INDEX finance_monthlybudget_category_id_e0ca7c00 ON finance_monthlybudget (category_id);",
+                ),
+                # 3. Operação no banco: remove a coluna category_id
                 migrations.RunSQL(
                     sql="ALTER TABLE finance_monthlybudget DROP COLUMN category_id;",
                     reverse_sql="ALTER TABLE finance_monthlybudget ADD COLUMN category_id INTEGER REFERENCES finance_category(id);",
-        ),
+                ),
             ],
             state_operations=[
                 # Operação no estado do modelo: remove o campo category
-        migrations.RemoveField(
-            model_name='monthlybudget',
-            name='category',
-        ),
+                migrations.RemoveField(
+                    model_name='monthlybudget',
+                    name='category',
+                ),
+                # Atualiza unique_together no estado para evitar referência a 'category' no passo 4
+                migrations.AlterUniqueTogether(
+                    name='monthlybudget',
+                    unique_together={('user', 'subcategory', 'year', 'month')},
+                ),
             ],
         ),
         
