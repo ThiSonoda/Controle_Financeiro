@@ -2041,6 +2041,70 @@ def dashboard_view(request):
                 'expenses': float(month_exp),
             })
         
+        # Dados orçados gerais (por mês) - para toggle Recebido/Orçado
+        monthly_income_expenses_budget = []
+        monthly_data_by_category_budget = {}
+        monthly_data_by_subcategory_budget = {}
+        
+        for m in range(1, 13):
+            month_inc_budget = MonthlyBudget.objects.filter(
+                year=year,
+                month=m,
+                subcategory__category__is_income=True
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            month_exp_budget = MonthlyBudget.objects.filter(
+                year=year,
+                month=m,
+                subcategory__category__is_income=False
+            ).aggregate(
+                total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+            )['total'] or Decimal('0')
+            
+            monthly_income_expenses_budget.append({
+                'month': month_names[m-1],
+                'income': float(month_inc_budget),
+                'expenses': float(month_exp_budget),
+            })
+        
+        for cat in all_categories:
+            cat_key = f"category_{cat.id}"
+            monthly_data_by_category_budget[cat_key] = []
+            for m in range(1, 13):
+                month_amount = MonthlyBudget.objects.filter(
+                    year=year,
+                    month=m,
+                    subcategory__category=cat
+                ).aggregate(
+                    total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+                )['total'] or Decimal('0')
+                
+                monthly_data_by_category_budget[cat_key].append({
+                    'month': month_names[m-1],
+                    'income': float(month_amount) if cat.is_income else 0.0,
+                    'expenses': float(month_amount) if not cat.is_income else 0.0,
+                })
+        
+        for subcat in all_subcategories:
+            subcat_key = f"subcategory_{subcat.id}"
+            monthly_data_by_subcategory_budget[subcat_key] = []
+            for m in range(1, 13):
+                month_amount = MonthlyBudget.objects.filter(
+                    year=year,
+                    month=m,
+                    subcategory=subcat
+                ).aggregate(
+                    total=Coalesce(Sum('amount'), Value(0), output_field=DecimalField())
+                )['total'] or Decimal('0')
+                
+                monthly_data_by_subcategory_budget[subcat_key].append({
+                    'month': month_names[m-1],
+                    'income': float(month_amount) if subcat.category.is_income else 0.0,
+                    'expenses': float(month_amount) if not subcat.category.is_income else 0.0,
+                })
+        
         # Dados por categoria (para filtro)
         for cat in all_categories:
             cat_key = f"category_{cat.id}"
@@ -2130,8 +2194,11 @@ def dashboard_view(request):
             'expense_budget': expense_budget,
             'budget_diff': budget_diff,
             'monthly_income_expenses': json.dumps(monthly_income_expenses),
+            'monthly_income_expenses_budget': json.dumps(monthly_income_expenses_budget),
             'monthly_data_by_category': json.dumps(monthly_data_by_category),
+            'monthly_data_by_category_budget': json.dumps(monthly_data_by_category_budget),
             'monthly_data_by_subcategory': json.dumps(monthly_data_by_subcategory),
+            'monthly_data_by_subcategory_budget': json.dumps(monthly_data_by_subcategory_budget),
             'categories_for_filter': json.dumps(categories_for_filter),
             'subcategories_for_filter': json.dumps(subcategories_for_filter),
             'subcategories_chart_data': json.dumps(subcategories_chart_data),

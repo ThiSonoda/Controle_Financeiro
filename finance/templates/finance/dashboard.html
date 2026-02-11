@@ -317,9 +317,15 @@
 
   <!-- Gráfico de Receitas/Despesas por Mês -->
   <div class="dashboard-card" style="margin-bottom: 30px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
       <h2 id="monthlyChartTitle" style="margin: 0;">📊 Receitas e Despesas por Mês ({{ year }})</h2>
-      <div style="position: relative; display: inline-block;">
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <!-- Toggle Recebido / Orçado -->
+        <div id="chartDataToggle" role="button" tabindex="0" style="display: flex; align-items: center; background-color: #e8e8e8; border: 1px solid #bbb; border-radius: 6px; padding: 2px; cursor: pointer; user-select: none;">
+          <span id="chartDataToggleRecebido" style="padding: 4px 10px; font-size: 13px; font-weight: 600; border-radius: 4px; background-color: #1976d2; color: white;">Recebido</span>
+          <span id="chartDataToggleOrcado" style="padding: 4px 10px; font-size: 13px; font-weight: 500; border-radius: 4px; color: #666;">Orçado</span>
+        </div>
+        <div style="position: relative; display: inline-block;">
         <button type="button" id="filterCategoryBtn" style="padding: 6px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #000;">
           <span id="filterCategoryText">Filtrar por categoria/subcategoria</span>
           <span style="font-size: 10px;">▼</span>
@@ -538,8 +544,11 @@
   
   // ========== GRÁFICO DE RECEITAS/DESPESAS POR MÊS COM FILTRO ==========
   const originalMonthlyData = {{ monthly_income_expenses|safe }};
+  const originalMonthlyDataBudget = {{ monthly_income_expenses_budget|safe }};
   const monthlyDataByCategory = {{ monthly_data_by_category|safe }};
+  const monthlyDataByCategoryBudget = {{ monthly_data_by_category_budget|safe }};
   const monthlyDataBySubcategory = {{ monthly_data_by_subcategory|safe }};
+  const monthlyDataBySubcategoryBudget = {{ monthly_data_by_subcategory_budget|safe }};
   const categoriesForFilter = {{ categories_for_filter|safe }};
   const subcategoriesForFilter = {{ subcategories_for_filter|safe }};
   const currentYear = {{ year }};
@@ -547,6 +556,7 @@
   let monthlyChart = null;
   let currentFilter = null; // 'category_X', 'subcategory_X', ou null
   let currentFilterName = null; // Nome da categoria/subcategoria selecionada
+  let chartDataMode = 'recebido'; // 'recebido' ou 'orcado'
   
   // Função para criar/atualizar o gráfico mensal
   function updateMonthlyChart(data) {
@@ -558,6 +568,9 @@
     const monthLabels = data.map(item => item.month);
     const incomeData = data.map(item => item.income);
     const expensesData = data.map(item => item.expenses);
+    const isOrcado = chartDataMode === 'orcado';
+    const incomeLabel = isOrcado ? 'Receitas (Orçado)' : 'Receitas';
+    const expensesLabel = isOrcado ? 'Despesas (Orçado)' : 'Despesas';
     
     // Destruir gráfico existente se houver
     if (monthlyChart) {
@@ -570,7 +583,7 @@
         labels: monthLabels,
         datasets: [
           {
-            label: 'Receitas',
+            label: incomeLabel,
             data: incomeData,
             borderColor: 'rgba(46, 125, 50, 1)',
             backgroundColor: 'rgba(46, 125, 50, 0.1)',
@@ -579,7 +592,7 @@
             tension: 0.4
           },
           {
-            label: 'Despesas',
+            label: expensesLabel,
             data: expensesData,
             borderColor: 'rgba(198, 40, 40, 1)',
             backgroundColor: 'rgba(198, 40, 40, 0.1)',
@@ -652,10 +665,7 @@
     }
     allRadio.addEventListener('change', function() {
       if (this.checked) {
-        currentFilter = null;
-        currentFilterName = null;
-        updateMonthlyChart(originalMonthlyData);
-        updateChartTitle(null);
+        applyFilter(null, null);
         document.getElementById('filterCategoryText').textContent = 'Filtrar por categoria/subcategoria';
         toggleFilterDropdown();
       }
@@ -800,25 +810,33 @@
     const titleElement = document.getElementById('monthlyChartTitle');
     if (!titleElement) return;
     
+    const modeSuffix = chartDataMode === 'orcado' ? ' (Orçado)' : '';
+    const baseTitle = '📊 Receitas e Despesas por Mês (' + currentYear + ')' + modeSuffix;
+    
     if (filterName) {
-      titleElement.textContent = '📊 Receitas e Despesas por Mês (' + currentYear + ') - Filtrado: ' + filterName;
+      titleElement.textContent = baseTitle + ' - Filtrado: ' + filterName;
     } else {
-      titleElement.textContent = originalChartTitle;
+      titleElement.textContent = baseTitle;
     }
+  }
+  
+  // Função para obter os dados atuais conforme modo (recebido/orçado) e filtro
+  function getCurrentChartData() {
+    const baseData = chartDataMode === 'recebido' ? originalMonthlyData : originalMonthlyDataBudget;
+    const categoryData = chartDataMode === 'recebido' ? monthlyDataByCategory : monthlyDataByCategoryBudget;
+    const subcategoryData = chartDataMode === 'recebido' ? monthlyDataBySubcategory : monthlyDataBySubcategoryBudget;
+    
+    if (!currentFilter) return baseData;
+    if (currentFilter.startsWith('category_')) return categoryData[currentFilter] || baseData;
+    if (currentFilter.startsWith('subcategory_')) return subcategoryData[currentFilter] || baseData;
+    return baseData;
   }
   
   // Função para aplicar filtro
   function applyFilter(filterKey, filterName) {
-    let dataToUse = originalMonthlyData;
-    
-    if (filterKey) {
-      if (filterKey.startsWith('category_')) {
-        dataToUse = monthlyDataByCategory[filterKey] || originalMonthlyData;
-      } else if (filterKey.startsWith('subcategory_')) {
-        dataToUse = monthlyDataBySubcategory[filterKey] || originalMonthlyData;
-      }
-    }
-    
+    currentFilter = filterKey;
+    currentFilterName = filterName;
+    const dataToUse = getCurrentChartData();
     updateMonthlyChart(dataToUse);
     updateChartTitle(filterName || null);
   }
@@ -832,10 +850,53 @@
     }
   }
   
-  // Inicializar gráfico e filtro
-  if (originalMonthlyData && originalMonthlyData.length > 0) {
+  // Função para alternar entre Recebido e Orçado
+  function toggleChartDataMode() {
+    chartDataMode = chartDataMode === 'recebido' ? 'orcado' : 'recebido';
+    
+    const recebidoEl = document.getElementById('chartDataToggleRecebido');
+    const orcadoEl = document.getElementById('chartDataToggleOrcado');
+    if (recebidoEl && orcadoEl) {
+      if (chartDataMode === 'recebido') {
+        recebidoEl.style.backgroundColor = '#1976d2';
+        recebidoEl.style.color = 'white';
+        recebidoEl.style.fontWeight = '600';
+        orcadoEl.style.backgroundColor = 'transparent';
+        orcadoEl.style.color = '#666';
+        orcadoEl.style.fontWeight = '500';
+      } else {
+        recebidoEl.style.backgroundColor = 'transparent';
+        recebidoEl.style.color = '#666';
+        recebidoEl.style.fontWeight = '500';
+        orcadoEl.style.backgroundColor = '#1976d2';
+        orcadoEl.style.color = 'white';
+        orcadoEl.style.fontWeight = '600';
+      }
+    }
+    
+    const dataToUse = getCurrentChartData();
+    updateMonthlyChart(dataToUse);
+    updateChartTitle(currentFilterName || null);
+  }
+  
+  // Inicializar gráfico e filtro (mostrar se houver dados recebidos OU orçados)
+  const hasData = (originalMonthlyData && originalMonthlyData.length > 0) ||
+    (originalMonthlyDataBudget && originalMonthlyDataBudget.length > 0);
+  if (hasData) {
     populateCategoryFilter();
-    updateMonthlyChart(originalMonthlyData);
+    updateMonthlyChart(getCurrentChartData());
+    
+    // Event listener para o toggle Recebido/Orçado
+    const chartDataToggle = document.getElementById('chartDataToggle');
+    if (chartDataToggle) {
+      chartDataToggle.addEventListener('click', toggleChartDataMode);
+      chartDataToggle.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleChartDataMode();
+        }
+      });
+    }
     
     // Event listener para o botão do dropdown
     const filterBtn = document.getElementById('filterCategoryBtn');

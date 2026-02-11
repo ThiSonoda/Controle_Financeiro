@@ -685,8 +685,9 @@
       dropdown.style.display = 'none';
       selectedIndex = -1;
       
-      // Validar o campo hidden
+      // Validar os campos
       hiddenInput.setCustomValidity('');
+      searchInput.setCustomValidity('');
       
       // Atualizar informações da subcategoria
       if (typeof updateSubcategoryInfo === 'function') {
@@ -712,14 +713,15 @@
       const filtered = filterSubcategories(query);
       renderDropdown(filtered);
       
-      // Se o texto não corresponde a nenhuma subcategoria selecionada, limpar o hidden
+      // Limpar validação customizada quando o usuário começa a digitar
+      searchInput.setCustomValidity('');
+      
+      // Se o campo hidden tem valor, verificar se ainda corresponde ao texto digitado
       if (hiddenInput.value) {
         const selected = subcategories.find(s => s.id == hiddenInput.value);
+        // Se o texto não corresponde mais à subcategoria selecionada, limpar o hidden
         if (!selected || selected.displayText !== query) {
           hiddenInput.value = '';
-          searchInput.setCustomValidity('Por favor, selecione uma subcategoria válida');
-        } else {
-          searchInput.setCustomValidity('');
         }
       }
     });
