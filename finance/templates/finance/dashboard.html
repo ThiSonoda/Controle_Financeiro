@@ -243,6 +243,39 @@
 
 {% if view_mode == 'annual' %}
   <!-- ========== VISUALIZAÇÃO ANUAL ========== -->
+
+  <!-- Gráfico de Receitas/Despesas por Mês -->
+  <div class="dashboard-card" style="margin-bottom: 30px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+      <h2 id="monthlyChartTitle" style="margin: 0;">📊 Receitas e Despesas por Mês ({{ year }})</h2>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <!-- Toggle Recebido / Orçado -->
+        <div id="chartDataToggle" role="button" tabindex="0" style="display: flex; align-items: center; background-color: #e8e8e8; border: 1px solid #bbb; border-radius: 6px; padding: 2px; cursor: pointer; user-select: none;">
+          <span id="chartDataToggleRecebido" style="padding: 4px 10px; font-size: 13px; font-weight: 600; border-radius: 4px; background-color: #1976d2; color: white;">Recebido</span>
+          <span id="chartDataToggleOrcado" style="padding: 4px 10px; font-size: 13px; font-weight: 500; border-radius: 4px; color: #666;">Orçado</span>
+        </div>
+        <div style="position: relative; display: inline-block;">
+        <button type="button" id="filterCategoryBtn" style="padding: 6px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #000;">
+          <span id="filterCategoryText">Filtrar por categoria/subcategoria</span>
+          <span style="font-size: 10px;">▼</span>
+        </button>
+        <div id="filterCategoryDropdown" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 280px; max-height: 400px; overflow-y: auto; padding: 8px;">
+          <div style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 14px;">Selecione categoria ou subcategoria:</div>
+          <div id="filterCategoryList" style="padding: 4px 0;">
+            <!-- Será preenchido via JavaScript -->
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    <canvas id="monthlyIncomeExpensesChart" style="max-height: 400px;"></canvas>
+  </div>
+
+  <!-- Gráfico de Gastos por Subcategoria (Anual) -->
+  <div class="dashboard-card" style="margin-bottom: 30px;">
+    <h2>📊 Gasto Total por Subcategoria ({{ year }})</h2>
+    <canvas id="annualSubcategoriesChart" style="max-height: 500px;"></canvas>
+  </div>
   
   <!-- Resumo Financeiro Anual -->
   <div class="dashboard-grid">
@@ -315,40 +348,54 @@
     </div>
   </div>
 
-  <!-- Gráfico de Receitas/Despesas por Mês -->
+{% else %}
+  <!-- ========== VISUALIZAÇÃO MENSUAL (ORIGINAL) ========== -->
+
+  <!-- Gráfico de Subcategorias -->
   <div class="dashboard-card" style="margin-bottom: 30px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-      <h2 id="monthlyChartTitle" style="margin: 0;">📊 Receitas e Despesas por Mês ({{ year }})</h2>
-      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-        <!-- Toggle Recebido / Orçado -->
-        <div id="chartDataToggle" role="button" tabindex="0" style="display: flex; align-items: center; background-color: #e8e8e8; border: 1px solid #bbb; border-radius: 6px; padding: 2px; cursor: pointer; user-select: none;">
-          <span id="chartDataToggleRecebido" style="padding: 4px 10px; font-size: 13px; font-weight: 600; border-radius: 4px; background-color: #1976d2; color: white;">Recebido</span>
-          <span id="chartDataToggleOrcado" style="padding: 4px 10px; font-size: 13px; font-weight: 500; border-radius: 4px; color: #666;">Orçado</span>
-        </div>
-        <div style="position: relative; display: inline-block;">
-        <button type="button" id="filterCategoryBtn" style="padding: 6px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #000;">
-          <span id="filterCategoryText">Filtrar por categoria/subcategoria</span>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <h2 style="margin: 0;">📊 Gasto vs Orçado por Subcategoria</h2>
+      <div style="position: relative; display: inline-block;">
+        <button type="button" id="excludeSubcategoriesBtn" style="padding: 6px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #000;">
+          Excluir subcategorias
+          <span id="excludeSubcategoriesCount" style="background-color: #1976d2; color: white; border-radius: 12px; padding: 2px 6px; font-size: 12px; min-width: 18px; text-align: center; display: none;">0</span>
           <span style="font-size: 10px;">▼</span>
         </button>
-        <div id="filterCategoryDropdown" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 280px; max-height: 400px; overflow-y: auto; padding: 8px;">
-          <div style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 14px;">Selecione categoria ou subcategoria:</div>
-          <div id="filterCategoryList" style="padding: 4px 0;">
+        <div id="excludeSubcategoriesDropdown" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 250px; max-height: 400px; overflow-y: auto; padding: 8px;">
+          <div style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 14px;">Selecione subcategorias para excluir:</div>
+          <div style="padding: 8px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" id="clearExclusionsBtn" style="padding: 4px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; cursor: pointer; color: #000;">Limpar</button>
+          </div>
+          <div id="excludeSubcategoriesList" style="padding: 4px 0;">
             <!-- Será preenchido via JavaScript -->
           </div>
         </div>
       </div>
     </div>
-    <canvas id="monthlyIncomeExpensesChart" style="max-height: 400px;"></canvas>
+    <canvas id="subcategoriesChart" style="max-height: 500px;"></canvas>
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0; display: flex; gap: 20px; flex-wrap: wrap; align-items: center; font-size: 12px; color: #666;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 30px; height: 2px; border-top: 2px dashed rgba(46, 125, 50, 0.8);"></div>
+        <span>Valor Orçado (referência)</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 20px; height: 12px; background-color: rgba(33, 150, 243, 0.7); border: 2px solid rgba(33, 150, 243, 1);"></div>
+        <span>&lt; 85% do orçado</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 20px; height: 12px; background-color: rgba(255, 152, 0, 0.7); border: 2px solid rgba(255, 152, 0, 1);"></div>
+        <span>85% - 99% do orçado</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 20px; height: 12px; background-color: rgba(49, 248, 59, 0.7); border: 2px solid rgba(46, 125, 50, 1);"></div>
+        <span>100% do orçado</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 20px; height: 12px; background-color: rgba(198, 40, 40, 0.7); border: 2px solid rgba(198, 40, 40, 1);"></div>
+        <span>&gt; 100% do orçado ou sem orçamento</span>
+      </div>
+    </div>
   </div>
-
-  <!-- Gráfico de Gastos por Subcategoria (Anual) -->
-  <div class="dashboard-card" style="margin-bottom: 30px;">
-    <h2>📊 Gasto Total por Subcategoria ({{ year }})</h2>
-    <canvas id="annualSubcategoriesChart" style="max-height: 500px;"></canvas>
-  </div>
-
-{% else %}
-  <!-- ========== VISUALIZAÇÃO MENSUAL (ORIGINAL) ========== -->
   
   <!-- Resumo Financeiro -->
 <div class="dashboard-grid">
@@ -424,52 +471,6 @@
     {% else %}
       <div class="no-data">Nenhuma fatura no período</div>
     {% endif %}
-  </div>
-</div>
-
-<!-- Gráfico de Subcategorias -->
-<div class="dashboard-card" style="margin-bottom: 30px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-    <h2 style="margin: 0;">📊 Gasto vs Orçado por Subcategoria</h2>
-    <div style="position: relative; display: inline-block;">
-      <button type="button" id="excludeSubcategoriesBtn" style="padding: 6px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #000;">
-        Excluir subcategorias
-        <span id="excludeSubcategoriesCount" style="background-color: #1976d2; color: white; border-radius: 12px; padding: 2px 6px; font-size: 12px; min-width: 18px; text-align: center; display: none;">0</span>
-        <span style="font-size: 10px;">▼</span>
-      </button>
-      <div id="excludeSubcategoriesDropdown" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 4px; background: white; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 250px; max-height: 400px; overflow-y: auto; padding: 8px;">
-        <div style="padding: 8px; border-bottom: 1px solid #eee; font-weight: 600; font-size: 14px;">Selecione subcategorias para excluir:</div>
-        <div style="padding: 8px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end;">
-          <button type="button" id="clearExclusionsBtn" style="padding: 4px 12px; background-color: #f5f5f5; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; cursor: pointer; color: #000;">Limpar</button>
-        </div>
-        <div id="excludeSubcategoriesList" style="padding: 4px 0;">
-          <!-- Será preenchido via JavaScript -->
-        </div>
-      </div>
-    </div>
-  </div>
-  <canvas id="subcategoriesChart" style="max-height: 500px;"></canvas>
-  <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0; display: flex; gap: 20px; flex-wrap: wrap; align-items: center; font-size: 12px; color: #666;">
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <div style="width: 30px; height: 2px; border-top: 2px dashed rgba(46, 125, 50, 0.8);"></div>
-      <span>Valor Orçado (referência)</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <div style="width: 20px; height: 12px; background-color: rgba(33, 150, 243, 0.7); border: 2px solid rgba(33, 150, 243, 1);"></div>
-      <span>&lt; 85% do orçado</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <div style="width: 20px; height: 12px; background-color: rgba(255, 152, 0, 0.7); border: 2px solid rgba(255, 152, 0, 1);"></div>
-      <span>85% - 99% do orçado</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <div style="width: 20px; height: 12px; background-color: rgba(49, 248, 59, 0.7); border: 2px solid rgba(46, 125, 50, 1);"></div>
-      <span>100% do orçado</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <div style="width: 20px; height: 12px; background-color: rgba(198, 40, 40, 0.7); border: 2px solid rgba(198, 40, 40, 1);"></div>
-      <span>&gt; 100% do orçado ou sem orçamento</span>
-    </div>
   </div>
 </div>
 

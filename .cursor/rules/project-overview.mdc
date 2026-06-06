@@ -1,0 +1,114 @@
+---
+description: Visão geral do Controle Financeiro — stack, domínio, estrutura e convenções
+alwaysApply: true
+---
+
+# Controle Financeiro — Descrição do Projeto
+
+Aplicação Django pessoal/familiar para controle financeiro, orçamento mensal, cartões de crédito e investimentos. Interface em **português (pt-BR)**, fuso **America/Sao_Paulo**.
+
+## Stack
+
+- **Python + Django 5.2.8** (SQLite em dev)
+- **python-dotenv** para variáveis de ambiente (`.env` — não versionado)
+- Autenticação nativa do Django (`login_required` nas views)
+- Templates Django server-side + CSS em `finance/static/finance/css/global.css`
+- Sem API REST; views retornam HTML ou `JsonResponse` pontual
+
+## Estrutura
+
+```
+Controle_Financeiro/     # settings, urls raiz, wsgi
+finance/                 # app principal (transações, orçamento, cartões)
+investment/              # investimentos e alocação de aportes
+manage.py
+requirements.txt
+db.sqlite3               # banco local (gitignored)
+```
+
+## Apps e responsabilidades
+
+### `finance` (core)
+
+**Modelos principais** (`finance/models.py`):
+- `Category` / `Subcategory` — categorias de receita/despesa por usuário
+- `Account` — contas bancárias com `balance` atualizado via signals
+- `Transaction` — lançamentos (receita `IN` / despesa `EX`); campos-chave: `date`, `payment_date`, `is_paid`, `installment_group`, `is_installment`, `credit_card`, `owner_tag` (Thi/Tha)
+- `CreditCard` — cartões com `closing_day` e `due_day`
+- `CreditCardRefund` — estornos vinculados a fatura (ano/mês)
+- `MonthlyBudget` / `BudgetItem` — orçamento mensal por subcategoria (valor direto ou soma de itens)
+- `BudgetTemplate` / `BudgetTemplateItem` / `BudgetTemplateItemItem` — templates reutilizáveis de orçamento
+- `Legend` — tradução de descrições de fatura de cartão
+- `ActionLog` — auditoria de ações do usuário
+
+**Signals** (`finance/signals.py`, carregados em `FinanceConfig.ready`):
+- Atualizam saldo de `Account` ao criar/editar/deletar `Transaction` (somente quando `is_paid=True`)
+- Criam `PendingInvestment` quando subcategoria contém "investimento"
+- Revertem saldo em mudanças de conta, valor, tipo ou `is_paid`
+
+**Views** (`finance/views.py` — arquivo grande, ~3300 linhas):
+- Funções baseadas em `@login_required`
+- Helpers: `log_action`, `_get_year_month_from_request`, `calculate_invoice_due_date`, `calculate_credit_card_invoices`
+- Navegação mensal via query params `?year=&month=` com persistência opcional em sessão
+
+**Rotas** (`finance/urls.py`, prefixo `/finance/`):
+| Rota | Função |
+|------|--------|
+| `/finance/` | Login |
+| `/finance/dashboard/` | Dashboard com resumo |
+| `/finance/transactions/` | Lançamentos do mês |
+| `/finance/planning/` | Planejamento/orçamento detalhado |
+| `/finance/budget/` | Orçamento mensal |
+| `/finance/all-transactions/` | Todas as transações |
+| `/finance/credit-card-refunds/` | Estornos de cartão |
+| `/finance/budget-templates/*` | CRUD e aplicação de templates |
+| `/finance/legends/` | Legendas de cartão |
+| `/finance/credit-cards/<id>/pay\|reopen/<year>/<month>/` | Pagar/reabrir fatura |
+
+Login/logout globais: `/login/`, `/logout/` (urls raiz).
+
+### `investment`
+
+**Modelos** (`investment/models.py`):
+- `Broker`, `InvestmentType`, `Investment` — carteira com saldo e rendimento
+- `InvestmentTransaction` — aportes, resgates, atualizações
+- `PendingInvestment` — valores de transações financeiras aguardando alocação (1:1 com `Transaction`)
+
+**Rotas**: `/investment/investments/` (única view por enquanto).
+
+## Regras de negócio importantes
+
+1. **Cartão de crédito**: `payment_date` é calculada pela data de fechamento/vencimento (`calculate_invoice_due_date`). Faturas agrupadas por cartão/ano/mês. Pagamento marca transações como `is_paid=True`.
+2. **Parcelamentos**: `installment_group` (UUID) + `is_installment=True` agrupam parcelas.
+3. **Orçamento**: por subcategoria/mês; pode usar itens (`use_items=True`) ou valor fixo. Templates globais aplicáveis a qualquer mês.
+4. **Saldos**: nunca atualizar `Account.balance` manualmente nas views — usar signals via save/delete de `Transaction`.
+5. **Owner tag**: obrigatório para cartão Bradesco (Thi = Thiago, Tha = Thaís).
+
+## Configuração (`Controle_Financeiro/settings.py`)
+
+- `LANGUAGE_CODE = 'pt-br'`, `TIME_ZONE = 'America/Sao_Paulo'`
+- `SECRET_KEY`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` via `.env` em produção
+- `LOGIN_URL = '/login/'`, redirect pós-login → `/finance/transactions/`
+- `INSTALLED_APPS`: `finance` e `investment` antes do admin
+
+## Convenções de código
+
+- Responder e documentar em **português**
+- Views como funções (não CBV), decorators `@login_required`
+- Valores monetários: `Decimal` com `max_digits=14, decimal_places=2`
+- Registrar ações relevantes com `log_action(user, action, details)`
+- Templates em `finance/templates/finance/`, base em `base.html`
+- Nomes de URL com `app_name = 'finance'` → `{% url 'finance:dashboard' %}`
+- Minimizar escopo de mudanças; seguir padrões existentes em `views.py`
+- Não commitar `.env`, `db.sqlite3`, credenciais ou arquivos de senha
+
+## Desenvolvimento local
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
+
+Criar superusuário: `python manage.py createsuperuser` (admin em `/admin/`).

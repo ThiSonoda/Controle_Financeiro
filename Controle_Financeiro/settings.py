@@ -24,12 +24,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY')
+SECRET_KEY = os.getenv('SECRET_KEY') or (
+    'django-insecure-local-only-defina-SECRET_KEY-no-env-em-producao'
+    if DEBUG
+    else None
+)
+if not SECRET_KEY:
+    raise ValueError('Defina SECRET_KEY no ambiente em produção (DEBUG=False).')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# Hosts permitidos (evita problemas de CSRF/Host com localhost vs 127.0.0.1, rede local, etc.)
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,[::1]').split(',')
+    if h.strip()
+]
+
+# Origens confiáveis para verificação CSRF (ex.: acesso por IP na rede ou porta diferente)
+_csrf = os.getenv('CSRF_TRUSTED_ORIGINS', '').strip()
+if _csrf:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ]
 
 
 # Application definition

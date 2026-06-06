@@ -61,7 +61,7 @@
 </style>
 
 <div class="edit-transaction-layout">
-  <form method="post" action="">
+  <form method="post" action="{% url 'finance:edit_transaction' transaction.id %}{% if edit_form_query_string %}?{{ edit_form_query_string }}{% endif %}">
     {% csrf_token %}
     {% if request.GET.next %}
       <input type="hidden" name="next" value="{{ request.GET.next }}">

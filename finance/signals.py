@@ -55,6 +55,7 @@ def transaction_pre_save(sender, instance, **kwargs):
     Se a transação já existe e estava paga, reverte o saldo antigo antes de aplicar o novo.
     """
     if instance.pk:  # Transação existente
+        instance._balance_needs_update = False
         try:
             old_instance = Transaction.objects.get(pk=instance.pk)
             old_is_paid = old_instance.is_paid
@@ -69,7 +70,8 @@ def transaction_pre_save(sender, instance, **kwargs):
                 old_amount != instance.amount or 
                 old_type != instance.type
             )
-            
+            instance._balance_needs_update = has_changes
+
             if has_changes:
                 # Reverter o impacto da transação antiga se estava paga
                 if old_is_paid:
@@ -111,9 +113,8 @@ def transaction_post_save(sender, instance, created, **kwargs):
                 # Se o app investment não estiver instalado, ignora
                 pass
     else:
-        # Transação existente: aplica o novo impacto se estiver paga
-        # O pre_save já reverteu o impacto antigo se necessário
-        if instance.is_paid:
+        # Só altera saldo se is_paid, conta, valor ou tipo mudaram (pre_save só reverte nesses casos)
+        if getattr(instance, '_balance_needs_update', False) and instance.is_paid:
             update_account_balance(instance.account, instance.amount, instance.type, instance.is_paid)
     
     # Limpar atributos temporários
@@ -125,6 +126,8 @@ def transaction_post_save(sender, instance, created, **kwargs):
         delattr(instance, '_old_amount')
     if hasattr(instance, '_old_type'):
         delattr(instance, '_old_type')
+    if hasattr(instance, '_balance_needs_update'):
+        delattr(instance, '_balance_needs_update')
 
 
 @receiver(pre_delete, sender=Transaction)

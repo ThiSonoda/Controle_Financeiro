@@ -7,6 +7,7 @@ from decimal import Decimal
 from collections import defaultdict
 
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.core.paginator import Paginator
 from django.db.models import Sum, Value, DecimalField, Q, F, Case, When
 from django.db.models.functions import Coalesce, Lower
@@ -652,6 +653,7 @@ def bulk_update_payment_date_view(request):
 
 
 @login_required
+@ensure_csrf_cookie
 def edit_transaction_view(request, transaction_id):
     """
     Edita uma transação existente.
@@ -824,6 +826,7 @@ def edit_transaction_view(request, transaction_id):
         'subcategories': subcategories,
         'accounts': accounts,
         'credit_cards': credit_cards,
+        'edit_form_query_string': request.GET.urlencode(),
     }
     return render(request, 'finance/edit_transaction.html', context)
 
@@ -1228,37 +1231,58 @@ def planning_view(request):
             else:
                 # Verificar se o orçamento já existe
                 try:
-                    existing_budget = MonthlyBudget.objects.get(
+                    existing_budget = MonthlyBudget.objects.prefetch_related('items').get(
                         user=user,
                         subcategory=subcategory,
                         year=year,
                         month=month
                     )
-                    # Atualizar orçamento
+                    # Calcular novos valores
+                    new_amount = amount if amount else Decimal('0.00')
                     comment_value = comment_str if comment_str else None
-                    existing_budget.amount = amount if amount else Decimal('0.00')
-                    existing_budget.comment = comment_value
-                    existing_budget.use_items = use_items
-                    existing_budget.save()
                     
-                    # Deletar itens antigos e criar novos
+                    # Verificar se houve alteração antes de salvar e registrar
+                    amount_changed = existing_budget.amount != new_amount
+                    comment_changed = (existing_budget.comment or '') != (comment_value or '')
+                    use_items_changed = existing_budget.use_items != use_items
+                    
+                    items_changed = False
                     if use_items:
-                        existing_budget.items.all().delete()
-                        for item_data in items_data:
-                            BudgetItem.objects.create(
-                                budget=existing_budget,
-                                description=item_data['description'],
-                                amount=item_data['amount'],
-                                order=item_data['order']
-                            )
-                    else:
-                        existing_budget.items.all().delete()
+                        old_items = list(existing_budget.items.values_list(
+                            'description', 'amount', 'order', flat=False
+                        ))
+                        new_items = [(i['description'], i['amount'], i['order']) for i in items_data]
+                        # Ordenar e comparar (amount pode ser Decimal)
+                        old_sorted = sorted([(d, float(a), o) for d, a, o in old_items], key=lambda x: (x[2], x[0]))
+                        new_sorted = sorted([(d, float(a), o) for d, a, o in new_items], key=lambda x: (x[2], x[0]))
+                        items_changed = old_sorted != new_sorted
                     
-                    log_action(
-                        user,
-                        f"Atualizou orçamento: {subcategory.name}",
-                        f"Mês/Ano: {month:02d}/{year}, Valor: R$ {existing_budget.amount:.2f}, Itens: {len(items_data) if use_items else 0}"
-                    )
+                    has_changes = amount_changed or comment_changed or use_items_changed or items_changed
+                    
+                    if has_changes:
+                        existing_budget.amount = new_amount
+                        existing_budget.comment = comment_value
+                        existing_budget.use_items = use_items
+                        existing_budget.save()
+                        
+                        # Deletar itens antigos e criar novos
+                        if use_items:
+                            existing_budget.items.all().delete()
+                            for item_data in items_data:
+                                BudgetItem.objects.create(
+                                    budget=existing_budget,
+                                    description=item_data['description'],
+                                    amount=item_data['amount'],
+                                    order=item_data['order']
+                                )
+                        else:
+                            existing_budget.items.all().delete()
+                        
+                        log_action(
+                            user,
+                            f"Atualizou orçamento: {subcategory.name}",
+                            f"Mês/Ano: {month:02d}/{year}, Valor: R$ {existing_budget.amount:.2f}, Itens: {len(items_data) if use_items else 0}"
+                        )
                 except MonthlyBudget.DoesNotExist:
                     # Criar novo orçamento
                     new_budget = MonthlyBudget.objects.create(
@@ -1648,6 +1672,7 @@ def planning_view(request):
         'total_income': total_income,
         'total_expenses': total_expenses,
         'income_expense_diff': income_expense_diff,
+        'initial_balance': previous_projected_balance,  # Saldo no início do mês selecionado (fim do mês anterior)
         'budget_diff': budget_diff,
         'projected_balance': projected_balance,
         'templates': templates,
@@ -2817,6 +2842,71 @@ def budget_template_save_current_view(request):
             'message': f'Template criado com sucesso com {template.items.count()} itens'
         })
     
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def budget_template_duplicate_view(request, template_id):
+    """Duplica um template de orçamento existente."""
+    from django.http import JsonResponse
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido'}, status=405)
+
+    try:
+        source_template = BudgetTemplate.objects.get(id=template_id)
+    except BudgetTemplate.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Template não encontrado'}, status=404)
+
+    try:
+        if request.content_type and 'application/json' in request.content_type:
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        name = data.get('name', '').strip()
+        if not name:
+            return JsonResponse({'success': False, 'error': 'Nome do template é obrigatório'}, status=400)
+
+        description = data.get('description', '').strip() or source_template.description
+
+        new_template = BudgetTemplate.objects.create(
+            name=name,
+            description=description,
+            user=request.user
+        )
+
+        for item in source_template.items.prefetch_related('items').all():
+            new_item = BudgetTemplateItem.objects.create(
+                template=new_template,
+                subcategory=item.subcategory,
+                amount=item.amount,
+                comment=item.comment,
+                use_items=item.use_items
+            )
+
+            if item.use_items:
+                for budget_item in item.items.all():
+                    BudgetTemplateItemItem.objects.create(
+                        template_item=new_item,
+                        description=budget_item.description,
+                        amount=budget_item.amount,
+                        order=budget_item.order
+                    )
+
+        log_action(
+            request.user,
+            f"Duplicou template de orçamento: {source_template.name} -> {new_template.name}",
+            f"Template origem ID: {source_template.id}, Novo template ID: {new_template.id}, Itens: {new_template.items.count()}"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'template_id': new_template.id,
+            'message': f'Template duplicado com sucesso com {new_template.items.count()} itens'
+        })
+
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 

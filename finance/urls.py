@@ -22,6 +22,7 @@ urlpatterns = [
     path('budget-templates/create/', views.budget_template_create_view, name='budget_template_create'),
     path('budget-templates/<int:template_id>/edit/', views.budget_template_edit_view, name='budget_template_edit'),
     path('budget-templates/<int:template_id>/delete/', views.budget_template_delete_view, name='budget_template_delete'),
+    path('budget-templates/<int:template_id>/duplicate/', views.budget_template_duplicate_view, name='budget_template_duplicate'),
     path('budget-templates/apply/', views.budget_template_apply_view, name='budget_template_apply'),
     path('budget-templates/save-current/', views.budget_template_save_current_view, name='budget_template_save_current'),
     path('legends/', views.legends_view, name='legends'),

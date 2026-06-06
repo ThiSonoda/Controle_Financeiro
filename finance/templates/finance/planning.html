@@ -136,58 +136,37 @@
 <div style="background-color: #f5f5f5; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #ddd;">
   <h3 style="margin-top: 0;">Resumo Financeiro</h3>
   
-  <!-- Primeira Linha: Valores Reais -->
-  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #ddd;">
-    <div>
-      <strong>Saldo Atual:</strong><br>
-      {% if current_balance >= 0 %}
-        <span style="font-size: 18px; color: #2e7d32;">R$ {{ current_balance|floatformat:2 }}</span>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; align-items: stretch;">
+    <div style="padding: 10px 14px;">
+      <strong>Saldo Inicial:</strong><br>
+      {% if initial_balance >= 0 %}
+        <span style="font-size: 18px; color: #2e7d32;">R$ {{ initial_balance|floatformat:2 }}</span>
       {% else %}
-        <span style="font-size: 18px; color: #c62828;">R$ {{ current_balance|floatformat:2 }}</span>
+        <span style="font-size: 18px; color: #c62828;">R$ {{ initial_balance|floatformat:2 }}</span>
       {% endif %}
     </div>
-    <div>
-      <strong>Total de Receitas:</strong><br>
-      <span style="font-size: 18px; color: #2e7d32;">R$ {{ total_income|floatformat:2 }}</span>
-    </div>
-    <div>
-      <strong>Total de Despesas:</strong><br>
-      <span style="font-size: 18px; color: #c62828;">R$ {{ total_expenses|floatformat:2 }}</span>
-    </div>
-    <div>
-      <strong>Diferença:</strong><br>
-      {% if income_expense_diff >= 0 %}
-        <span style="font-size: 18px; color: #2e7d32;">R$ {{ income_expense_diff|floatformat:2 }}</span>
-      {% else %}
-        <span style="font-size: 18px; color: #c62828;">R$ {{ income_expense_diff|floatformat:2 }}</span>
-      {% endif %}
-    </div>
-  </div>
-  
-  <!-- Segunda Linha: Valores Orçados -->
-  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
-    <div>
-      <strong>Saldo Projetado:</strong><br>
-      {% if projected_balance >= 0 %}
-        <span style="font-size: 18px; color: #2e7d32;">R$ {{ projected_balance|floatformat:2 }}</span>
-      {% else %}
-        <span style="font-size: 18px; color: #c62828;">R$ {{ projected_balance|floatformat:2 }}</span>
-      {% endif %}
-    </div>
-    <div>
+    <div style="padding: 10px 14px;">
       <strong>Receitas Orçadas:</strong><br>
       <span style="font-size: 18px; color: #2e7d32;">R$ {{ income_total_budget|floatformat:2 }}</span>
     </div>
-    <div>
+    <div style="padding: 10px 14px;">
       <strong>Despesas Orçadas:</strong><br>
       <span style="font-size: 18px; color: #c62828;">R$ {{ expense_total_budget|floatformat:2 }}</span>
     </div>
-    <div>
+    <div style="padding: 10px 14px;">
       <strong>Diferença:</strong><br>
       {% if budget_diff >= 0 %}
         <span style="font-size: 18px; color: #2e7d32;">R$ {{ budget_diff|floatformat:2 }}</span>
       {% else %}
         <span style="font-size: 18px; color: #c62828;">R$ {{ budget_diff|floatformat:2 }}</span>
+      {% endif %}
+    </div>
+    <div style="border-left: 8px solid #1976d2; background-color: #e3f2fd; padding: 10px 14px; border-radius: 4px; border: 3px solid #90caf9; box-sizing: border-box;">
+      <strong>Saldo Projetado:</strong><br>
+      {% if projected_balance >= 0 %}
+        <span style="font-size: 18px; color: #2e7d32;">R$ {{ projected_balance|floatformat:2 }}</span>
+      {% else %}
+        <span style="font-size: 18px; color: #c62828;">R$ {{ projected_balance|floatformat:2 }}</span>
       {% endif %}
     </div>
   </div>
@@ -197,22 +176,26 @@
 <!-- Resumo em Tempo Real do Modo de Edição -->
 <div id="editModeSummary" style="position: sticky; top: 10px; z-index: 1000; background-color: #e3f2fd; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 2px solid #2196F3; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
   <h3 style="margin-top: 0; color: #1976d2;">Resumo do Orçamento (Atualização em Tempo Real)</h3>
-  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
-    <div>
-      <strong>Saldo Projetado:</strong><br>
-      <span id="editModeProjectedBalance" style="font-size: 18px; font-weight: bold;">R$ 0.00</span>
+  <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; align-items: stretch;">
+    <div style="padding: 10px 14px;">
+      <strong>Saldo Inicial:</strong><br>
+      <span id="editModeInitialBalance" style="font-size: 18px; font-weight: bold; {% if initial_balance >= 0 %}color: #2e7d32;{% else %}color: #c62828;{% endif %}">R$ {{ initial_balance|floatformat:2 }}</span>
     </div>
-    <div>
-      <strong>Total Receitas:</strong><br>
+    <div style="padding: 10px 14px;">
+      <strong>Receitas Orçadas:</strong><br>
       <span id="editModeTotalIncome" style="font-size: 18px; color: #2e7d32; font-weight: bold;">R$ 0.00</span>
     </div>
-    <div>
-      <strong>Total Despesas:</strong><br>
+    <div style="padding: 10px 14px;">
+      <strong>Despesas Orçadas:</strong><br>
       <span id="editModeTotalExpenses" style="font-size: 18px; color: #c62828; font-weight: bold;">R$ 0.00</span>
     </div>
-    <div>
+    <div style="padding: 10px 14px;">
       <strong>Diferença:</strong><br>
       <span id="editModeBalance" style="font-size: 18px; font-weight: bold;">R$ 0.00</span>
+    </div>
+    <div style="border-left: 8px solid #1976d2; background-color: #e3f2fd; padding: 10px 14px; border-radius: 4px; border: 3px solid #90caf9; box-sizing: border-box;">
+      <strong>Saldo Projetado:</strong><br>
+      <span id="editModeProjectedBalance" style="font-size: 18px; font-weight: bold;">R$ 0.00</span>
     </div>
   </div>
 </div>
@@ -642,7 +625,7 @@
 
 <!-- Modal de Templates -->
 <div id="templatesModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-  <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; max-height: 80vh; overflow-y: auto;">
+  <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 92%; max-width: 1200px; border-radius: 8px; max-height: 80vh; overflow-y: auto;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <h2 style="margin: 0;">Templates de Orçamento</h2>
       <span onclick="closeTemplatesModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
@@ -671,7 +654,7 @@
                 <th>Categoria</th>
                 <th>Subcategoria</th>
                 <th>Valor (R$)</th>
-                <th>Comentário</th>
+                <th style="min-width: 280px;">Comentário</th>
               </tr>
             </thead>
             <tbody id="createTemplateSubcategories">
@@ -717,7 +700,7 @@
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td style="min-width: 280px;">
                       <textarea class="template-comment-input" 
                                 data-subcategory-id="{{ subcat.id }}"
                                 rows="2" 
@@ -780,7 +763,7 @@
 
 <!-- Modal para Editar Template -->
 <div id="editTemplateModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
-  <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; max-height: 80vh; overflow-y: auto;">
+  <div style="background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 92%; max-width: 1200px; border-radius: 8px; max-height: 80vh; overflow-y: auto;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <h2 style="margin: 0;">Editar Template</h2>
       <span onclick="closeEditTemplateModal()" style="color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
@@ -804,7 +787,7 @@
               <th>Categoria</th>
               <th>Subcategoria</th>
               <th>Valor (R$)</th>
-              <th>Comentário</th>
+              <th style="min-width: 280px;">Comentário</th>
             </tr>
           </thead>
           <tbody id="editTemplateSubcategories">
@@ -832,6 +815,8 @@
                       <input type="number" 
                              class="edit-template-budget-input" 
                              data-subcategory-id="{{ subcat.id }}"
+                             data-subcategory-name="{{ subcat.name }}"
+                             data-category-name="{{ cat.category_name }}"
                              data-category-is-income="{% if cat.category_is_income %}true{% else %}false{% endif %}"
                              step="0.01" 
                              min="0" 
@@ -850,7 +835,7 @@
                       </div>
                     </div>
                   </td>
-                  <td>
+                  <td style="min-width: 280px;">
                     <textarea class="edit-template-comment-input" 
                               data-subcategory-id="{{ subcat.id }}"
                               rows="2" 
@@ -865,22 +850,39 @@
       </div>
       <div style="margin-bottom: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 4px; border: 1px solid #ddd;">
         <h4 style="margin-top: 0; margin-bottom: 10px;">Resumo do Template:</h4>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-          <div>
-            <strong>Total Receitas:</strong><br>
-            <span id="editTemplateTotalIncome" style="font-size: 16px; color: #2e7d32;">R$ 0.00</span>
+        <div style="display: grid; grid-template-columns: minmax(200px, 220px) minmax(280px, 1fr) minmax(280px, 1fr); gap: 16px; align-items: start;">
+          <div style="display: flex; flex-direction: column; gap: 14px; padding-right: 12px;">
+            <div>
+              <strong style="display: block; margin-bottom: 4px; font-size: 15px;">Total Receitas:</strong>
+              <span id="editTemplateTotalIncome" style="font-size: 24px; font-weight: 700; color: #2e7d32;">R$ 0.00</span>
+            </div>
+            <div>
+              <strong style="display: block; margin-bottom: 4px; font-size: 15px;">Total Despesas:</strong>
+              <span id="editTemplateTotalExpenses" style="font-size: 24px; font-weight: 700; color: #c62828;">R$ 0.00</span>
+            </div>
+            <div>
+              <strong style="display: block; margin-bottom: 4px; font-size: 15px;">Saldo Final:</strong>
+              <span id="editTemplateBalance" style="font-size: 24px; font-weight: 700;">R$ 0.00</span>
+            </div>
           </div>
           <div>
-            <strong>Total Despesas:</strong><br>
-            <span id="editTemplateTotalExpenses" style="font-size: 16px; color: #c62828;">R$ 0.00</span>
+            <h5 style="margin: 0 0 10px 0; font-size: 14px;">Receitas por subcategoria</h5>
+            <div style="position: relative; height: 260px;">
+              <canvas id="editTemplateIncomeChart" style="display: none; max-height: 260px;"></canvas>
+              <p id="editTemplateIncomeChartEmpty" style="margin: 0; padding: 24px 12px; text-align: center; color: #666; font-size: 14px;">Informe receitas no template para visualizar a distribuição por subcategoria.</p>
+            </div>
           </div>
           <div>
-            <strong>Saldo Final:</strong><br>
-            <span id="editTemplateBalance" style="font-size: 16px; font-weight: bold;">R$ 0.00</span>
+            <h5 style="margin: 0 0 10px 0; font-size: 14px;">Despesas por categoria</h5>
+            <div style="position: relative; height: 260px;">
+              <canvas id="editTemplateExpenseChart" style="display: none; max-height: 260px;"></canvas>
+              <p id="editTemplateExpenseChartEmpty" style="margin: 0; padding: 24px 12px; text-align: center; color: #666; font-size: 14px;">Informe despesas no template para visualizar a distribuição por categoria.</p>
+            </div>
           </div>
         </div>
       </div>
       <div style="text-align: right;">
+        <button type="button" onclick="duplicateCurrentTemplate()" style="padding: 8px 16px; background-color: #9C27B0; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Duplicar</button>
         <button type="button" onclick="closeEditTemplateModal()" style="padding: 8px 16px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px;">Cancelar</button>
         <button type="submit" style="padding: 8px 16px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Salvar</button>
       </div>
@@ -889,6 +891,7 @@
 </div>
 
 {% if is_edit_mode %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 const currentYear = {{ year }};
 const currentMonth = {{ month }};
@@ -1020,6 +1023,7 @@ function closeEditTemplateModal() {
   });
   // Resetar totais
   updateEditTemplateTotals();
+  destroyEditTemplateSummaryCharts();
 }
 
 function loadTemplates() {
@@ -1400,6 +1404,51 @@ function deleteTemplate(templateId) {
     });
 }
 
+function duplicateCurrentTemplate() {
+  const templateId = document.getElementById('editTemplateId').value;
+  if (!templateId) {
+    alert('Nenhum template carregado para duplicar.');
+    return;
+  }
+
+  duplicateTemplate(parseInt(templateId, 10));
+}
+
+function duplicateTemplate(templateId) {
+  const newName = prompt('Informe o nome do novo template:');
+  if (newName === null) {
+    return;
+  }
+
+  const name = newName.trim();
+  if (!name) {
+    alert('O nome do template é obrigatório.');
+    return;
+  }
+
+  fetch(`{% url "finance:budget_template_duplicate" 0 %}`.replace('0', templateId), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({ name: name })
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert(data.message || 'Template duplicado com sucesso!');
+        loadTemplates();
+      } else {
+        alert('Erro: ' + data.error);
+      }
+    })
+    .catch(error => {
+      console.error('Erro ao duplicar template:', error);
+      alert('Erro ao duplicar template.');
+    });
+}
+
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -1471,6 +1520,193 @@ function updateCreateTemplateTotals() {
 }
 
 // Função para calcular e atualizar totais do template de edição
+const EDIT_TEMPLATE_INCOME_COLORS = [
+  '#2e7d32', '#43a047', '#66bb6a', '#81c784', '#a5d6a7',
+  '#1b5e20', '#388e3c', '#4caf50', '#7cb342', '#9ccc65'
+];
+const EDIT_TEMPLATE_EXPENSE_COLORS = [
+  '#ef5350', '#ab47bc', '#5c6bc0', '#42a5f5', '#26a69a',
+  '#9ccc65', '#ffca28', '#ffa726', '#8d6e63', '#78909c'
+];
+let editTemplateIncomeChart = null;
+let editTemplateExpenseChart = null;
+
+function destroyEditTemplateSummaryCharts() {
+  if (editTemplateIncomeChart) {
+    editTemplateIncomeChart.destroy();
+    editTemplateIncomeChart = null;
+  }
+
+  if (editTemplateExpenseChart) {
+    editTemplateExpenseChart.destroy();
+    editTemplateExpenseChart = null;
+  }
+
+  const incomeCanvas = document.getElementById('editTemplateIncomeChart');
+  const incomeEmptyMessage = document.getElementById('editTemplateIncomeChartEmpty');
+  if (incomeCanvas) {
+    incomeCanvas.style.display = 'none';
+  }
+  if (incomeEmptyMessage) {
+    incomeEmptyMessage.style.display = 'block';
+  }
+
+  const expenseCanvas = document.getElementById('editTemplateExpenseChart');
+  const expenseEmptyMessage = document.getElementById('editTemplateExpenseChartEmpty');
+  if (expenseCanvas) {
+    expenseCanvas.style.display = 'none';
+  }
+  if (expenseEmptyMessage) {
+    expenseEmptyMessage.style.display = 'block';
+  }
+}
+
+function getEditTemplateSubcategoryAmount(subcategoryId) {
+  const checkbox = document.querySelector(`.edit-template-use-items-checkbox[data-subcategory-id="${subcategoryId}"]`);
+  if (checkbox && checkbox.checked) {
+    const totalSpan = document.getElementById(`edit-template-items-total-${subcategoryId}`);
+    return parseFloat(totalSpan?.textContent) || 0;
+  }
+
+  const input = document.querySelector(`.edit-template-budget-input[data-subcategory-id="${subcategoryId}"]`);
+  return parseFloat(input?.value) || 0;
+}
+
+function collectEditTemplateIncomeBySubcategory() {
+  const totalsBySubcategory = new Map();
+
+  document.querySelectorAll('.edit-template-budget-input').forEach(input => {
+    if (input.getAttribute('data-category-is-income') !== 'true') {
+      return;
+    }
+
+    const subcategoryId = input.getAttribute('data-subcategory-id');
+    const subcategoryName = input.getAttribute('data-subcategory-name') || 'Sem subcategoria';
+    const amount = getEditTemplateSubcategoryAmount(subcategoryId);
+    if (amount > 0) {
+      totalsBySubcategory.set(subcategoryName, (totalsBySubcategory.get(subcategoryName) || 0) + amount);
+    }
+  });
+
+  return totalsBySubcategory;
+}
+
+function collectEditTemplateExpenseByCategory() {
+  const totalsByCategory = new Map();
+
+  document.querySelectorAll('.edit-template-budget-input').forEach(input => {
+    if (input.getAttribute('data-category-is-income') === 'true') {
+      return;
+    }
+
+    const subcategoryId = input.getAttribute('data-subcategory-id');
+    const categoryName = input.getAttribute('data-category-name') || 'Sem categoria';
+    const amount = getEditTemplateSubcategoryAmount(subcategoryId);
+    if (amount > 0) {
+      totalsByCategory.set(categoryName, (totalsByCategory.get(categoryName) || 0) + amount);
+    }
+  });
+
+  return totalsByCategory;
+}
+
+function updateEditTemplatePieChart(existingChart, canvasId, emptyMessageId, totalsByCategory, colorPalette) {
+  const canvas = document.getElementById(canvasId);
+  const emptyMessage = document.getElementById(emptyMessageId);
+  if (!canvas || typeof Chart === 'undefined') {
+    return existingChart;
+  }
+
+  const labels = [];
+  const values = [];
+  totalsByCategory.forEach((value, label) => {
+    labels.push(label);
+    values.push(value);
+  });
+
+  if (labels.length === 0) {
+    if (existingChart) {
+      existingChart.destroy();
+    }
+    canvas.style.display = 'none';
+    if (emptyMessage) {
+      emptyMessage.style.display = 'block';
+    }
+    return null;
+  }
+
+  canvas.style.display = 'block';
+  if (emptyMessage) {
+    emptyMessage.style.display = 'none';
+  }
+
+  const colors = labels.map((_, index) => colorPalette[index % colorPalette.length]);
+
+  if (existingChart) {
+    existingChart.data.labels = labels;
+    existingChart.data.datasets[0].data = values;
+    existingChart.data.datasets[0].backgroundColor = colors;
+    existingChart.update();
+    return existingChart;
+  }
+
+  return new Chart(canvas.getContext('2d'), {
+    type: 'pie',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderColor: '#fff',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            boxWidth: 12,
+            font: { size: 11 }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const value = context.parsed || 0;
+              const total = context.dataset.data.reduce((sum, item) => sum + item, 0);
+              const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+              return `${context.label}: R$ ${value.toFixed(2)} (${percentage}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+function updateEditTemplateSummaryCharts() {
+  const incomeData = collectEditTemplateIncomeBySubcategory();
+  const expenseData = collectEditTemplateExpenseByCategory();
+
+  editTemplateIncomeChart = updateEditTemplatePieChart(
+    editTemplateIncomeChart,
+    'editTemplateIncomeChart',
+    'editTemplateIncomeChartEmpty',
+    incomeData,
+    EDIT_TEMPLATE_INCOME_COLORS
+  );
+  editTemplateExpenseChart = updateEditTemplatePieChart(
+    editTemplateExpenseChart,
+    'editTemplateExpenseChart',
+    'editTemplateExpenseChartEmpty',
+    expenseData,
+    EDIT_TEMPLATE_EXPENSE_COLORS
+  );
+}
+
 function updateEditTemplateTotals() {
   let totalIncome = 0;
   let totalExpenses = 0;
@@ -1517,6 +1753,8 @@ function updateEditTemplateTotals() {
   const balanceElement = document.getElementById('editTemplateBalance');
   balanceElement.textContent = 'R$ ' + balance.toFixed(2);
   balanceElement.style.color = balance >= 0 ? '#2e7d32' : '#c62828';
+
+  updateEditTemplateSummaryCharts();
 }
 
 // Funções para gerenciar itens nos templates de criação
